@@ -212,13 +212,31 @@ footer, .show-api, .built-with, .footer { display: none !important; }
    ============================================================ */
 .input-row { padding: 24px 32px 8px !important; gap: 12px !important; align-items: stretch !important; }
 
-/* Reset Gradio's default wrapper chrome around the textbox */
-.ticker-input,
-.ticker-input > .block,
-.ticker-input > .form,
+/* The outer wrapper IS the visible "input box". All inner gradio chrome
+   becomes transparent so we don't get nested borders or background bleed. */
+.ticker-input {
+  background: var(--card) !important;
+  border: 1px solid var(--border-mid) !important;
+  border-radius: var(--radius) !important;
+  height: 56px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+  display: flex !important;
+  align-items: stretch !important;
+}
+.ticker-input:focus-within {
+  border-color: var(--navy) !important;
+  box-shadow: 0 0 0 3px rgba(15, 27, 51, 0.06) !important;
+}
+
+/* Strip every inner gradio wrapper to nothing visible. */
+.ticker-input > *,
+.ticker-input .block,
+.ticker-input .form,
 .ticker-input .wrap,
 .ticker-input .container,
-.ticker-input > div {
+.ticker-input .input-container {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -226,8 +244,13 @@ footer, .show-api, .built-with, .footer { display: none !important; }
   margin: 0 !important;
   border-radius: 0 !important;
   min-height: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: stretch !important;
 }
 
+/* The real input lives at any depth; make it fill the box and own the type. */
 .ticker-input textarea,
 .ticker-input input,
 .ticker-input input[type="text"] {
@@ -236,18 +259,20 @@ footer, .show-api, .built-with, .footer { display: none !important; }
   font-weight: 500 !important;
   letter-spacing: 0.08em !important;
   text-transform: uppercase !important;
-  background: var(--card) !important;
-  border: 1px solid var(--border-mid) !important;
-  border-radius: var(--radius) !important;
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   padding: 0 20px !important;
+  margin: 0 !important;
   color: var(--ink-1) !important;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
-  height: 56px !important;
+  height: 100% !important;
   width: 100% !important;
   display: block !important;
   resize: none !important;
-  line-height: 56px !important;
+  line-height: 54px !important;
   overflow: hidden !important;
+  white-space: nowrap !important;
 }
 .ticker-input textarea::placeholder,
 .ticker-input input::placeholder {
@@ -255,12 +280,7 @@ footer, .show-api, .built-with, .footer { display: none !important; }
   text-transform: none !important;
   letter-spacing: 0 !important;
   font-style: italic !important;
-}
-.ticker-input textarea:focus,
-.ticker-input input:focus {
-  border-color: var(--navy) !important;
-  outline: none !important;
-  box-shadow: 0 0 0 3px rgba(15, 27, 51, 0.06) !important;
+  opacity: 1 !important;
 }
 .ticker-input label,
 .ticker-input span[data-testid="block-info"] { display: none !important; }
