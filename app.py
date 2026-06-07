@@ -210,9 +210,27 @@ footer, .show-api, .built-with, .footer { display: none !important; }
 /* ============================================================
    Input bar
    ============================================================ */
-.input-row { padding: 24px 32px 8px !important; gap: 12px !important; }
+.input-row { padding: 24px 32px 8px !important; gap: 12px !important; align-items: stretch !important; }
+
+/* Reset Gradio's default wrapper chrome around the textbox */
+.ticker-input,
+.ticker-input > .block,
+.ticker-input > .form,
+.ticker-input .wrap,
+.ticker-input .container,
+.ticker-input > div {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  min-height: 0 !important;
+}
+
 .ticker-input textarea,
-.ticker-input input {
+.ticker-input input,
+.ticker-input input[type="text"] {
   font-family: var(--font-mono) !important;
   font-size: 18px !important;
   font-weight: 500 !important;
@@ -221,10 +239,22 @@ footer, .show-api, .built-with, .footer { display: none !important; }
   background: var(--card) !important;
   border: 1px solid var(--border-mid) !important;
   border-radius: var(--radius) !important;
-  padding: 16px 20px !important;
+  padding: 0 20px !important;
   color: var(--ink-1) !important;
   transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
-  min-height: 56px !important;
+  height: 56px !important;
+  width: 100% !important;
+  display: block !important;
+  resize: none !important;
+  line-height: 56px !important;
+  overflow: hidden !important;
+}
+.ticker-input textarea::placeholder,
+.ticker-input input::placeholder {
+  color: var(--ink-5) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  font-style: italic !important;
 }
 .ticker-input textarea:focus,
 .ticker-input input:focus {
@@ -232,7 +262,8 @@ footer, .show-api, .built-with, .footer { display: none !important; }
   outline: none !important;
   box-shadow: 0 0 0 3px rgba(15, 27, 51, 0.06) !important;
 }
-.ticker-input label { display: none !important; }
+.ticker-input label,
+.ticker-input span[data-testid="block-info"] { display: none !important; }
 
 .run-btn {
   background: var(--navy) !important;
@@ -1429,14 +1460,15 @@ with gr.Blocks(
     gr.HTML(_BRAND_HEADER)
 
     with gr.Tab("Analyze"):
-        with gr.Row(elem_classes="input-row"):
+        with gr.Row(elem_classes="input-row", equal_height=True):
             ticker = gr.Textbox(
-                label="",
-                placeholder="Ticker symbol  e.g. AVGO",
+                label="Ticker",
+                placeholder="e.g. AVGO, NVDA, JPM",
                 scale=5,
                 show_label=False,
                 elem_classes="ticker-input",
-                container=False,
+                lines=1,
+                max_lines=1,
             )
             run_btn = gr.Button(
                 "Convene Committee",
