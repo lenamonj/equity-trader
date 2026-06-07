@@ -117,7 +117,7 @@ Required API keys:
 | `FRED_API_KEY` | [fred.stlouisfed.org](https://fred.stlouisfed.org/docs/api/api_key.html) | Free |
 | `SEC_EDGAR_USER_AGENT_EMAIL` | Your own email | Free (required by SEC for EDGAR access) |
 
-OpenAI is the only LLM provider currently configured. Earlier development versions tried Groq, DeepSeek, and Gemini, but each failed for distinct reasons (Groq Llama 3.3 70B rejects the SDK's strict JSON schema mode; DeepSeek requires a separately funded account; Gemini's OpenAI-compat shim cannot combine function calling with structured output). If a multi-provider SDK eventually handles all three reliably, re-introducing model diversity is on the roadmap.
+OpenAI is the only LLM provider currently configured. Multi-provider model routing is on the roadmap.
 
 <br>
 
@@ -266,7 +266,7 @@ Mock layer covers all 8 agents, the orchestrator, the runner, the scoring math, 
 - [ ] Multi-ticker watchlist with scheduled daily runs (cron + SendGrid digest)
 - [ ] News sentiment via Finnhub free tier
 - [ ] Position-aware orchestration: read current portfolio from Aladdin/Bloomberg export
-- [ ] Re-introduce model diversity when a multi-provider SDK reliably handles tool calls plus structured output (currently Gemini's OpenAI-compat shim cannot do both)
+- [ ] Multi-provider model routing (route specialists to different models based on workload and cost)
 
 <br>
 
