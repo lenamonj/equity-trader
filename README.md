@@ -50,7 +50,23 @@ Each persona has its own multi-bullet analysis framework, its own tool set, and 
 
 ## Quick start
 
-Prerequisites: Python 3.11+ and [uv](https://docs.astral.sh/uv/).
+This project uses [uv](https://docs.astral.sh/uv/) for dependency management. uv installs Python itself if needed, so it is the only prerequisite.
+
+### 1. Install uv (one-time)
+
+**macOS / Linux:**
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+**Windows (PowerShell):**
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Alternatives: `pip install uv`, `pipx install uv`, `brew install uv`. See [uv install docs](https://docs.astral.sh/uv/getting-started/installation/) for more.
+
+### 2. Clone and set up the project
 
 ```bash
 # Clone
@@ -61,15 +77,24 @@ cd equity-trader
 cp .env.template .env
 # Edit .env: at minimum OPENAI_API_KEY, FRED_API_KEY, SEC_EDGAR_USER_AGENT_EMAIL
 
-# Install
+# Install Python 3.11 (auto) and all dependencies into a local .venv
 uv sync
+```
 
-# Run the CLI
+`uv sync` reads `pyproject.toml` and `uv.lock`, installs the pinned Python toolchain into a project-local `.venv/`, and resolves every dependency reproducibly. No global Python install, no manual venv activation.
+
+### 3. Run
+
+```bash
+# CLI: rich-formatted terminal report
 uv run python run.py AAPL
 
-# Or launch the web UI (hot-reload)
+# Web UI with hot reload (development)
 uv run gradio app.py
 # Opens at http://127.0.0.1:7860
+
+# Web UI without hot reload (production)
+uv run python app.py
 ```
 
 Required API keys (free tiers are sufficient):
