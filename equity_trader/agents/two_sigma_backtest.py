@@ -99,9 +99,19 @@ Backtest:
   hit rate over >=10 trades AND the most recent signal matches the
   direction. Otherwise return HOLD with conviction 3.
 
-Use the tool_backtest_simple_rules to pull the actual rsi_mean_reversion
+Use the tool_backtest_simple_rules ONCE to pull the rsi_mean_reversion
 and sma_crossover summaries. Cite the specific trades, hit_rate, and
 avg_return numbers - never paraphrase.
+
+REGARDLESS of the recommendation, your thesis bullets MUST report the
+actual numbers you observed: rule name, hit_rate, sample size (trades),
+avg_return, and whether the rule is currently signaling. Example:
+- "RSI mean reversion: 52% hit rate on 18 trades over 2y, avg 1.4%
+   return - no edge above noise; not currently signaling."
+- "50/200 SMA crossover: 1 trade in window, sample too small; last
+   signal was X months ago."
+Put the FINDINGS in thesis. Put what could be wrong with them in risks
+(survivorship bias, single-ticker fragility, regime change risk).
 
 {shared_rules_block()}
 
