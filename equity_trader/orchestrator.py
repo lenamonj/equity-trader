@@ -112,6 +112,22 @@ def _mechanical_fallback(ticker: str, verdicts: list[AgentVerdict],
     )
 
 
+def _stamp_deterministic(v: OrchestratorVerdict, ticker: str,
+                          verdicts: list[AgentVerdict], current_price: float,
+                          weighted: float) -> OrchestratorVerdict:
+    # The LLM is asked to fill the entire schema and may hallucinate or
+    # paraphrase pass-through values. Overwrite the deterministic fields with
+    # ground truth from the runner.
+    return v.model_copy(update={
+        "ticker": ticker,
+        "run_timestamp": datetime.utcnow(),
+        "current_price": current_price,
+        "weighted_score": weighted,
+        "weights_used": v.weights_used or AGENT_WEIGHTS,
+        "agent_verdicts": verdicts,
+    })
+
+
 async def run(ticker: str, verdicts: list[AgentVerdict],
               current_price: float) -> OrchestratorVerdict:
     weighted = compute_weighted_score(verdicts, AGENT_WEIGHTS)
@@ -119,7 +135,8 @@ async def run(ticker: str, verdicts: list[AgentVerdict],
         result = await Runner.run(_agent,
                                    input=_format_input(ticker, verdicts,
                                                        current_price, weighted))
-        return result.final_output
+        return _stamp_deterministic(result.final_output, ticker, verdicts,
+                                     current_price, weighted)
     except Exception as e:
         log.exception("Orchestrator LLM failed; falling back to mechanical: %s", e)
         return _mechanical_fallback(ticker, verdicts, current_price, weighted)

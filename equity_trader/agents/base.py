@@ -1,6 +1,6 @@
 import os
 from openai import AsyncOpenAI
-from agents import Agent, OpenAIChatCompletionsModel
+from agents import Agent, AgentOutputSchema, OpenAIChatCompletionsModel
 
 from equity_trader.config import ModelSpec
 
@@ -37,7 +37,7 @@ def build_agent(*, name: str, instructions: str, tools: list,
         instructions=instructions,
         tools=tools,
         model=model,
-        output_type=output_type,
+        output_type=AgentOutputSchema(output_type, strict_json_schema=False),
     )
 
 

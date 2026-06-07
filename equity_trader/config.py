@@ -11,13 +11,13 @@ class ModelSpec:
 
 
 AGENT_MODELS: dict[str, ModelSpec] = {
-    "jpm_fundamental":     ModelSpec("gemini",   "gemini-2.5-pro"),
-    "bridgewater_macro":   ModelSpec("gemini",   "gemini-2.5-pro"),
-    "gs_technical":        ModelSpec("deepseek", "deepseek-chat"),
-    "citadel_quant":       ModelSpec("groq",     "llama-3.3-70b-versatile"),
-    "renaissance_pattern": ModelSpec("groq",     "llama-3.3-70b-versatile"),
-    "de_shaw_options":     ModelSpec("deepseek", "deepseek-chat"),
-    "two_sigma_backtest":  ModelSpec("groq",     "llama-3.3-70b-versatile"),
+    "jpm_fundamental":     ModelSpec("openai",   "gpt-4o-mini"),
+    "bridgewater_macro":   ModelSpec("openai",   "gpt-4o-mini"),
+    "gs_technical":        ModelSpec("openai",   "gpt-4o-mini"),
+    "citadel_quant":       ModelSpec("openai",   "gpt-4o-mini"),
+    "renaissance_pattern": ModelSpec("openai",   "gpt-4o-mini"),
+    "de_shaw_options":     ModelSpec("openai",   "gpt-4o-mini"),
+    "two_sigma_backtest":  ModelSpec("openai",   "gpt-4o-mini"),
 }
 
 AGENT_WEIGHTS: dict[str, float] = {

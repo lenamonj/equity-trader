@@ -15,9 +15,9 @@ class AgentVerdict(BaseModel):
     recommendation: Recommendation
     conviction: int = Field(ge=1, le=10)
     price_target_6mo: Optional[float] = None
-    thesis: list[str] = Field(min_length=1, max_length=6)
-    risks: list[str] = Field(min_length=1, max_length=4)
-    data_cited: list[str] = Field(min_length=1)
+    thesis: list[str] = Field(default_factory=list, max_length=6)
+    risks: list[str] = Field(default_factory=list, max_length=4)
+    data_cited: list[str] = Field(default_factory=list)
     error_note: Optional[str] = None
 
 

@@ -35,12 +35,14 @@ def test_agent_verdict_recommendation_literal():
         )
 
 
-def test_agent_verdict_thesis_min_one():
-    with pytest.raises(ValidationError):
-        AgentVerdict(
-            agent="a", ticker="T", recommendation="BUY", conviction=5,
-            thesis=[], risks=["y"], data_cited=["z"],
-        )
+def test_agent_verdict_empty_lists_allowed():
+    # Models occasionally return empty thesis/risks/data_cited; we accept them
+    # rather than fail Pydantic validation and lose the rest of the verdict.
+    v = AgentVerdict(
+        agent="a", ticker="T", recommendation="HOLD", conviction=3,
+        thesis=[], risks=[], data_cited=[],
+    )
+    assert v.thesis == []
 
 
 def test_catalyst_event():
