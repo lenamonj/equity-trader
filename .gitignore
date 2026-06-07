@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+.env
+runs/*.json
+equity_trader.db
+equity_trader.db-shm
+equity_trader.db-wal
+.DS_Store
