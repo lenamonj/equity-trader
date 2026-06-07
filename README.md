@@ -258,17 +258,6 @@ Mock layer covers all 8 agents, the orchestrator, the runner, the scoring math, 
 
 <br>
 
-## Roadmap
-
-- [ ] Backtest harness: join persisted runs to forward returns, grade verdicts by agent
-- [ ] Inter-agent debate round: let specialists see each other's calls and revise once before the orchestrator decides
-- [ ] Multi-ticker watchlist with scheduled daily runs (cron + SendGrid digest)
-- [ ] News sentiment via Finnhub free tier
-- [ ] Position-aware orchestration: read current portfolio from Aladdin/Bloomberg export
-- [ ] Multi-provider model routing (route specialists to different models based on workload and cost)
-
-<br>
-
 ## Design docs
 
 The full design spec and implementation plan are checked in for transparency.
