@@ -1,7 +1,7 @@
 import pytest
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from unittest.mock import AsyncMock, patch
-from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
+from equity_trader.schemas import AgentVerdict, CatalystEvent, OrchestratorVerdict
 from equity_trader import orchestrator as orch
 
 
@@ -10,6 +10,13 @@ def _v(agent, rec, conv=7, tgt=200.0, err=None):
                         conviction=conv, price_target_6mo=tgt,
                         thesis=["t"], risks=["r"], data_cited=["d"],
                         error_note=err)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_calendar(monkeypatch):
+    # Default: orchestrator tests do NOT hit yfinance for the calendar.
+    # Individual tests can override by setting orch.get_real_catalysts again.
+    monkeypatch.setattr(orch, "get_real_catalysts", lambda ticker, today: [])
 
 
 @pytest.mark.asyncio
@@ -71,6 +78,75 @@ async def test_orchestrator_stamps_deterministic_fields_over_llm_hallucination()
     # The judgment fields (final_recommendation, synthesis, etc.) survive
     assert out.final_recommendation == "BUY"
     assert "synthesis sufficiently long" in out.synthesis
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_drops_out_of_window_catalysts(monkeypatch):
+    # The LLM occasionally fabricates plausible-looking but past-dated earnings
+    # (e.g., "Q4 2023" when today is 2026). Out-of-window entries are dropped.
+    today = date.today()
+    past = today - timedelta(days=365)
+    future_in = today + timedelta(days=60)
+    future_out = today + timedelta(days=365)
+
+    monkeypatch.setattr(orch, "get_real_catalysts",
+                         lambda ticker, t: [])
+
+    hallucinated = OrchestratorVerdict(
+        ticker="AVGO", run_timestamp=datetime.utcnow(), current_price=300.0,
+        final_recommendation="HOLD", conviction=5, price_target_6mo=320.0,
+        weighted_score=2.0, weights_used={"jpm_fundamental": 100.0},
+        weight_overrides_rationale=None,
+        synthesis="A synthesis sufficiently long to clear the schema minimum length.",
+        key_agreements=[], key_disagreements=[], dominant_drivers=[],
+        red_flags=[], position_sizing_suggestion="starter (~1%)",
+        stop_loss_level=None,
+        catalyst_calendar=[
+            CatalystEvent(event="Q4 2023 Earnings", date=past,
+                          expected_impact="HIGH"),
+            CatalystEvent(event="Q3 2026 Earnings", date=future_in,
+                          expected_impact="HIGH"),
+            CatalystEvent(event="FY2027 Guidance Day", date=future_out,
+                          expected_impact="MEDIUM"),
+        ],
+        agent_verdicts=[_v("jpm_fundamental", "BUY", 8)],
+    )
+    with patch.object(orch, "Runner") as RunnerCls:
+        RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": hallucinated})())
+        out = await orch.run("AVGO", [_v("jpm_fundamental", "BUY", 8)],
+                              current_price=300.0)
+    dates = [c.date for c in out.catalyst_calendar]
+    assert past not in dates
+    assert future_out not in dates
+    assert future_in in dates
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_injects_real_catalysts_even_if_llm_drops_them(monkeypatch):
+    today = date.today()
+    real_date = today + timedelta(days=90)
+    monkeypatch.setattr(orch, "get_real_catalysts", lambda ticker, t: [
+        {"event": "Earnings release", "date": real_date.isoformat(),
+         "expected_impact": "HIGH", "notes": "Source: yfinance calendar"}
+    ])
+
+    no_calendar = OrchestratorVerdict(
+        ticker="AVGO", run_timestamp=datetime.utcnow(), current_price=300.0,
+        final_recommendation="BUY", conviction=7, price_target_6mo=320.0,
+        weighted_score=4.0, weights_used={"jpm_fundamental": 100.0},
+        weight_overrides_rationale=None,
+        synthesis="A synthesis sufficiently long to clear the schema minimum length.",
+        key_agreements=[], key_disagreements=[], dominant_drivers=[],
+        red_flags=[], position_sizing_suggestion="starter (~1%)",
+        stop_loss_level=290.0, catalyst_calendar=[],
+        agent_verdicts=[_v("jpm_fundamental", "BUY", 8)],
+    )
+    with patch.object(orch, "Runner") as RunnerCls:
+        RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": no_calendar})())
+        out = await orch.run("AVGO", [_v("jpm_fundamental", "BUY", 8)],
+                              current_price=300.0)
+    assert any(c.date == real_date and c.event == "Earnings release"
+               for c in out.catalyst_calendar)
 
 
 @pytest.mark.asyncio
