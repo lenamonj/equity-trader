@@ -47,3 +47,51 @@ def test_catalyst_event():
     e = CatalystEvent(event="Q2 earnings", date=date(2026, 8, 27),
                       expected_impact="HIGH", notes="Guidance update")
     assert e.expected_impact == "HIGH"
+
+
+from datetime import datetime
+from equity_trader.schemas import OrchestratorVerdict
+
+
+def _sample_verdict(agent="a", rec="BUY"):
+    return AgentVerdict(
+        agent=agent, ticker="NVDA", recommendation=rec, conviction=7,
+        price_target_6mo=200.0, thesis=["t"], risks=["r"], data_cited=["d"],
+    )
+
+
+def test_orchestrator_verdict_minimal_ok():
+    ov = OrchestratorVerdict(
+        ticker="NVDA",
+        run_timestamp=datetime.utcnow(),
+        current_price=190.0,
+        final_recommendation="BUY",
+        conviction=7,
+        price_target_6mo=210.0,
+        weighted_score=4.2,
+        weights_used={"jpm_fundamental": 25.0},
+        weight_overrides_rationale=None,
+        synthesis="Strong fundamentals; macro mixed but acceptable for horizon.",
+        key_agreements=["FCF strong"],
+        key_disagreements=["Macro vs technical"],
+        dominant_drivers=["jpm_fundamental", "gs_technical"],
+        red_flags=["Customer concentration"],
+        position_sizing_suggestion="starter (~1%)",
+        stop_loss_level=182.0,
+        catalyst_calendar=[],
+        agent_verdicts=[_sample_verdict()],
+    )
+    assert ov.final_recommendation == "BUY"
+
+
+def test_orchestrator_verdict_position_sizing_literal():
+    with pytest.raises(ValidationError):
+        OrchestratorVerdict(
+            ticker="NVDA", run_timestamp=datetime.utcnow(), current_price=190.0,
+            final_recommendation="BUY", conviction=7, price_target_6mo=210.0,
+            weighted_score=4.2, weights_used={"a": 100.0},
+            weight_overrides_rationale=None, synthesis="x",
+            key_agreements=[], key_disagreements=[], dominant_drivers=[],
+            red_flags=[], position_sizing_suggestion="MAX OUT",
+            stop_loss_level=None, catalyst_calendar=[], agent_verdicts=[],
+        )

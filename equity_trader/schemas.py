@@ -26,3 +26,24 @@ class CatalystEvent(BaseModel):
     date: date
     expected_impact: Impact
     notes: Optional[str] = None
+
+
+class OrchestratorVerdict(BaseModel):
+    ticker: str
+    run_timestamp: datetime
+    current_price: float
+    final_recommendation: Recommendation
+    conviction: int = Field(ge=1, le=10)
+    price_target_6mo: Optional[float] = None
+    weighted_score: float
+    weights_used: dict[str, float]
+    weight_overrides_rationale: Optional[str] = None
+    synthesis: str = Field(min_length=50, max_length=3000)
+    key_agreements: list[str]
+    key_disagreements: list[str]
+    dominant_drivers: list[str]
+    red_flags: list[str]
+    position_sizing_suggestion: PositionSize
+    stop_loss_level: Optional[float] = None
+    catalyst_calendar: list[CatalystEvent]
+    agent_verdicts: list[AgentVerdict]
