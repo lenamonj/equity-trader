@@ -87,5 +87,5 @@ agent = build_agent(
 
 
 async def run(ticker: str) -> AgentVerdict:
-    result = await Runner.run(agent, input=f"Analyze {ticker} for a 3-6 month horizon.")
+    result = await Runner.run(agent, input=f"Analyze {ticker} for a 3-6 month horizon.", max_turns=20)
     return result.final_output

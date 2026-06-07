@@ -46,3 +46,16 @@ def test_shared_rules_block_mentions_horizon_and_schema():
     assert "data_cited" in text
     assert "thesis" in text
     assert "risks" in text
+
+
+def test_shared_rules_block_enforces_exact_recommendation_literals():
+    # Models occasionally return SOLD/BOUGHT/HELD instead of BUY/HOLD/SELL,
+    # which Pydantic rejects and we lose the whole verdict.
+    text = shared_rules_block()
+    assert "BUY, HOLD, SELL" in text
+    assert "SOLD" in text  # explicit anti-example
+
+
+def test_shared_rules_block_caps_tool_calls():
+    text = shared_rules_block()
+    assert "AT MOST ONCE" in text
