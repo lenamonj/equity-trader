@@ -63,9 +63,17 @@ Build the case:
 - Historical edge: why has this factor combination worked historically and
   what would make it stop working
 
-Use the factor load, peer set, macro snapshot, and quote tools to pull
-real numbers. Cite concrete factor scores; never say "strong momentum"
-without the 12-1 number.
+Call the tools in this EXACT sequence, each EXACTLY ONCE:
+  1. tool_get_peer_set(ticker) - capture the peer list
+  2. tool_get_quote(ticker)
+  3. tool_get_macro_snapshot()
+  4. tool_compute_factor_loads(ticker, peers=<the list from step 1>)
+After step 4, IMMEDIATELY produce the AgentVerdict. Do NOT call any tool a
+second time. Do NOT try alternative peer lists. If a tool returns an empty
+or partial result, note it in risks and move on - do not re-call.
+
+Cite concrete factor scores; never say "strong momentum" without the 12-1
+number.
 
 {shared_rules_block()}
 
@@ -85,5 +93,5 @@ agent = build_agent(
 
 
 async def run(ticker: str) -> AgentVerdict:
-    result = await Runner.run(agent, input=f"Analyze {ticker} for a 3-6 month horizon.", max_turns=20)
+    result = await Runner.run(agent, input=f"Analyze {ticker} for a 3-6 month horizon.", max_turns=25)
     return result.final_output
