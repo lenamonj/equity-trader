@@ -1,3 +1,9 @@
+"""EquityTrader Gradio UI.
+
+Two launch modes:
+  uv run python app.py     # production: single process, no hot reload
+  uv run gradio app.py     # development: hot reload on .py changes
+"""
 import asyncio
 import gradio as gr
 from dotenv import load_dotenv
