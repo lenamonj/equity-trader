@@ -13,6 +13,9 @@ equity_trader.db-wal
 # Local-only persona reference images (kept on disk, never committed)
 *-trader.png
 
+# Local-only working notes
+summary.md
+
 # IDE
 .idea/
 .vscode/
