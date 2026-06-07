@@ -22,11 +22,22 @@
 
 <br>
 
+> **Heads up: this project makes paid LLM calls on every ticker run.**
+> An `OPENAI_API_KEY` with funded credit is required. Each ticker run makes
+> roughly 8 to 10 calls to `gpt-4o-mini` (specialists) and one call to
+> `gpt-4o` (orchestrator), for a total cost of approximately **$0.20 to
+> $0.40 per ticker**. There is no free tier alternative built in -- OpenAI
+> is the only model provider currently configured. Add $5 of credit at
+> [platform.openai.com](https://platform.openai.com) and it covers
+> 15 to 25 full committee runs.
+
+<br>
+
 ## What it is
 
 EquityTrader convenes eight specialist analysts modeled after the desks of the world's most respected investment houses, then synthesizes their structured verdicts into a single Buy / Hold / Sell recommendation over a 3 to 6 month horizon.
 
-Each specialist reasons independently with its own toolset and persona. A committee orchestrator reads all seven verdicts, computes a deterministic weighted score, and writes a portfolio manager style memo with position sizing, stop loss, and a real catalyst calendar pulled live from market data.
+Each specialist reasons independently with its own toolset and persona. A committee orchestrator reads all eight verdicts, computes a deterministic weighted score, and writes a portfolio manager style memo with position sizing, stop loss, and a real catalyst calendar pulled live from market data.
 
 The system is built for actual buyside use. Every number is sourced. Every catalyst date is real. The committee score is auditable down to the contribution of each agent.
 
@@ -98,13 +109,15 @@ uv run gradio app.py
 uv run python app.py
 ```
 
-Required API keys (free tiers are sufficient):
+Required API keys:
 
 | Key | Source | Cost |
 |---|---|---|
-| OPENAI_API_KEY | platform.openai.com | Pay as you go, ~$0.20 to $0.40 per ticker run |
-| FRED_API_KEY | fred.stlouisfed.org | Free |
-| SEC_EDGAR_USER_AGENT_EMAIL | Your email | Free (required by SEC) |
+| `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com) | **Paid.** Requires funded credit. ~$0.20 to $0.40 per ticker run (eight `gpt-4o-mini` calls + one `gpt-4o` orchestrator call). |
+| `FRED_API_KEY` | [fred.stlouisfed.org](https://fred.stlouisfed.org/docs/api/api_key.html) | Free |
+| `SEC_EDGAR_USER_AGENT_EMAIL` | Your own email | Free (required by SEC for EDGAR access) |
+
+OpenAI is the only LLM provider currently configured. Earlier development versions tried Groq, DeepSeek, and Gemini, but each failed for distinct reasons (Groq Llama 3.3 70B rejects the SDK's strict JSON schema mode; DeepSeek requires a separately funded account; Gemini's OpenAI-compat shim cannot combine function calling with structured output). If a multi-provider SDK eventually handles all three reliably, re-introducing model diversity is on the roadmap.
 
 <br>
 
