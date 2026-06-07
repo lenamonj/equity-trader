@@ -69,3 +69,22 @@ def test_compute_statistical_patterns_returns_keys(monkeypatch):
     assert {"autocorr_1d", "autocorr_5d", "monthly_seasonality",
             "regime", "realized_vol_30d"}.issubset(out.keys())
     assert out["regime"] in {"trending", "mean_reverting", "mixed"}
+
+
+def test_get_peer_set(monkeypatch):
+    class FakeTicker:
+        info = {"sector": "Technology", "industry": "Semiconductors"}
+
+    monkeypatch.setattr(yft.yf, "Ticker", lambda t: FakeTicker())
+    peers = yft.get_peer_set("NVDA")
+    assert isinstance(peers, list)
+    assert len(peers) >= 1
+    assert "NVDA" not in peers
+
+
+def test_compute_factor_loads_runs(monkeypatch):
+    from equity_trader.data.cache import reset_run_cache
+    reset_run_cache()
+    _fake_history(monkeypatch)
+    out = yft.compute_factor_loads("NVDA", peers=["AMD", "INTC"])
+    assert {"momentum_12_1", "volatility_60d", "rel_strength_vs_peers"}.issubset(out.keys())

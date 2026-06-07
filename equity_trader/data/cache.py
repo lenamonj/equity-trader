@@ -18,10 +18,21 @@ def _get_cache() -> dict:
     return cache
 
 
+def _make_hashable(v: Any) -> Any:
+    """Recursively convert lists/dicts to hashable equivalents."""
+    if isinstance(v, list):
+        return tuple(_make_hashable(i) for i in v)
+    if isinstance(v, dict):
+        return tuple(sorted((_make_hashable(k), _make_hashable(val)) for k, val in v.items()))
+    return v
+
+
 def cached_for_run(func: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(func)
     def wrapper(*args, **kwargs):
-        key = (func.__name__, args, tuple(sorted(kwargs.items())))
+        key = (func.__name__,
+               tuple(_make_hashable(a) for a in args),
+               tuple(sorted((k, _make_hashable(v)) for k, v in kwargs.items())))
         cache = _get_cache()
         if key not in cache:
             cache[key] = func(*args, **kwargs)

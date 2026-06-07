@@ -105,6 +105,98 @@ def compute_technicals(ticker: str) -> dict:
     }
 
 
+# Simple sector-peer heuristic. Real peer discovery would use a richer source;
+# yfinance's `info` doesn't expose peers directly, so we use a small hardcoded
+# map keyed on sector/industry. Override at call-site if richer peers needed.
+_SECTOR_PEERS = {
+    ("Technology", "Semiconductors"): ["AMD", "INTC", "AVGO", "TSM", "QCOM"],
+    ("Technology", "Software - Infrastructure"): ["MSFT", "ORCL", "CRM", "ADBE"],
+    ("Technology", "Software - Application"): ["CRM", "NOW", "SNOW", "DDOG"],
+    ("Communication Services", "Internet Content & Information"):
+        ["GOOGL", "META", "PINS", "SNAP"],
+    ("Consumer Cyclical", "Internet Retail"): ["AMZN", "MELI", "EBAY"],
+    ("Financial Services", "Banks - Diversified"): ["JPM", "BAC", "C", "WFC"],
+}
+
+
+@cached_for_run
+def get_peer_set(ticker: str) -> list[str]:
+    _throttle()
+    info = yf.Ticker(ticker).info or {}
+    key = (info.get("sector"), info.get("industry"))
+    peers = _SECTOR_PEERS.get(key, [])
+    return [p for p in peers if p.upper() != ticker.upper()]
+
+
+@cached_for_run
+def get_options_chain(ticker: str, expiry: str | None = None) -> dict:
+    _throttle()
+    t = yf.Ticker(ticker)
+    expiries = list(t.options or [])
+    if not expiries:
+        return {"expiries": [], "calls": [], "puts": [], "selected_expiry": None}
+    chosen = expiry or expiries[min(2, len(expiries) - 1)]  # ~near-term but not weeklies
+    chain = t.option_chain(chosen)
+    return {
+        "expiries": expiries,
+        "selected_expiry": chosen,
+        "calls": chain.calls[["strike", "lastPrice", "impliedVolatility",
+                              "openInterest", "volume"]].to_dict(orient="records"),
+        "puts": chain.puts[["strike", "lastPrice", "impliedVolatility",
+                            "openInterest", "volume"]].to_dict(orient="records"),
+    }
+
+
+@cached_for_run
+def compute_iv_stats(ticker: str) -> dict:
+    chain = get_options_chain(ticker)
+    calls = chain["calls"]
+    puts = chain["puts"]
+    if not calls or not puts:
+        return {"atm_iv": None, "put_call_iv_skew": None,
+                "selected_expiry": chain["selected_expiry"]}
+    quote = get_quote(ticker)
+    spot = quote["last_price"]
+    atm_call = min(calls, key=lambda c: abs(c["strike"] - spot))
+    atm_put = min(puts, key=lambda p: abs(p["strike"] - spot))
+    return {
+        "atm_iv": float(atm_call["impliedVolatility"]),
+        "put_call_iv_skew": float(atm_put["impliedVolatility"]
+                                   - atm_call["impliedVolatility"]),
+        "selected_expiry": chain["selected_expiry"],
+    }
+
+
+@cached_for_run
+def compute_factor_loads(ticker: str, peers: list[str]) -> dict:
+    df = get_price_history(ticker, period="2y", interval="1d")
+    close = df["Close"]
+    # 12-1 momentum: return from t-252 to t-21
+    if len(close) >= 252:
+        mom_12_1 = float(close.iloc[-21] / close.iloc[-252] - 1.0)
+    else:
+        mom_12_1 = float(close.iloc[-1] / close.iloc[0] - 1.0)
+    vol_60 = float(close.pct_change().tail(60).std() * (252 ** 0.5))
+
+    # Relative strength vs peers over last 90 sessions
+    base_ret = float(close.iloc[-1] / close.iloc[-90] - 1.0) if len(close) >= 90 else 0.0
+    peer_rets = []
+    for p in peers:
+        try:
+            pdf = get_price_history(p, period="6mo", interval="1d")
+            peer_rets.append(float(pdf["Close"].iloc[-1] / pdf["Close"].iloc[0] - 1.0))
+        except Exception:
+            continue
+    rel = base_ret - (sum(peer_rets) / len(peer_rets)) if peer_rets else 0.0
+
+    return {
+        "momentum_12_1": mom_12_1,
+        "volatility_60d": vol_60,
+        "rel_strength_vs_peers": rel,
+        "peer_count_used": len(peer_rets),
+    }
+
+
 @cached_for_run
 def compute_statistical_patterns(ticker: str) -> dict:
     df = get_price_history(ticker, period="2y", interval="1d")
