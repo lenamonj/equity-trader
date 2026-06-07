@@ -9,3 +9,13 @@ equity_trader.db
 equity_trader.db-shm
 equity_trader.db-wal
 .DS_Store
+
+# Local-only persona reference images (kept on disk, never committed)
+*-trader.png
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+Thumbs.db
