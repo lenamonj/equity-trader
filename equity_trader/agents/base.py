@@ -1,0 +1,41 @@
+import os
+from openai import AsyncOpenAI
+from agents import Agent, OpenAIChatCompletionsModel
+
+from equity_trader.config import ModelSpec
+
+
+_BASE_URLS = {
+    "groq": "https://api.groq.com/openai/v1",
+    "deepseek": "https://api.deepseek.com/v1",
+    "gemini": "https://generativelanguage.googleapis.com/v1beta/openai/",
+}
+_ENV_KEYS = {
+    "openai": "OPENAI_API_KEY",
+    "groq": "GROQ_API_KEY",
+    "deepseek": "DEEPSEEK_API_KEY",
+    "gemini": "GOOGLE_API_KEY",
+}
+
+
+def _client_for(spec: ModelSpec) -> AsyncOpenAI:
+    env_key = _ENV_KEYS[spec.provider]
+    api_key = os.environ.get(env_key)
+    if not api_key:
+        raise RuntimeError(f"{env_key} not set")
+    if spec.provider == "openai":
+        return AsyncOpenAI(api_key=api_key)
+    return AsyncOpenAI(api_key=api_key, base_url=_BASE_URLS[spec.provider])
+
+
+def build_agent(*, name: str, instructions: str, tools: list,
+                spec: ModelSpec, output_type):
+    client = _client_for(spec)
+    model = OpenAIChatCompletionsModel(model=spec.model, openai_client=client)
+    return Agent(
+        name=name,
+        instructions=instructions,
+        tools=tools,
+        model=model,
+        output_type=output_type,
+    )
