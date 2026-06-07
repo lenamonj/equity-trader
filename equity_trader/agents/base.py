@@ -39,3 +39,16 @@ def build_agent(*, name: str, instructions: str, tools: list,
         model=model,
         output_type=output_type,
     )
+
+
+def shared_rules_block() -> str:
+    return (
+        "HARD RULES:\n"
+        "1. Horizon is strictly 3-6 months. Reject theses pegged to longer windows.\n"
+        "2. Cite specific data points in `data_cited` (e.g., '10-Q Q1 revenue',\n"
+        "   'DGS10 5/29 close', 'RSI 28 on 2026-06-05').\n"
+        "3. Provide 1-6 thesis bullets and 1-4 concrete risks.\n"
+        "4. Conviction is 1-10 where 10 = bet-the-book confidence.\n"
+        "5. Output MUST conform to the AgentVerdict schema.\n"
+        "6. If you genuinely lack data, return HOLD with conviction 3 and explain in risks.\n"
+    )

@@ -1,7 +1,7 @@
 import os
 import pytest
 from equity_trader.config import ModelSpec
-from equity_trader.agents.base import build_agent, _client_for
+from equity_trader.agents.base import build_agent, _client_for, shared_rules_block
 
 
 def test_client_for_openai(monkeypatch):
@@ -38,3 +38,11 @@ def test_build_agent_constructs(monkeypatch):
         output_type=dict,
     )
     assert a.name == "test_agent"
+
+
+def test_shared_rules_block_mentions_horizon_and_schema():
+    text = shared_rules_block()
+    assert "3-6 month" in text
+    assert "data_cited" in text
+    assert "thesis" in text
+    assert "risks" in text
