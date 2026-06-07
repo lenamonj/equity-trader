@@ -3,13 +3,13 @@
 # EquityTrader
 
 ### A multi-strategy investment committee, in your terminal.
-### Seven specialist agents. One ticker. One verdict.
+### Eight specialist agents. One ticker. One verdict.
 
 <br>
 
 ![Python](https://img.shields.io/badge/python-3.11+-3776AB?logo=python&logoColor=white)
 ![License: MIT](https://img.shields.io/badge/license-MIT-success)
-![Tests](https://img.shields.io/badge/tests-57%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-59%20passing-brightgreen)
 ![uv](https://img.shields.io/badge/managed%20by-uv-DE5FE9)
 ![OpenAI Agents SDK](https://img.shields.io/badge/built%20on-OpenAI%20Agents%20SDK-412991)
 ![Gradio](https://img.shields.io/badge/UI-Gradio-F97316)
@@ -24,7 +24,7 @@
 
 ## What it is
 
-EquityTrader convenes seven specialist analysts modeled after the desks of the world's most respected investment houses, then synthesizes their structured verdicts into a single Buy / Hold / Sell recommendation over a 3 to 6 month horizon.
+EquityTrader convenes eight specialist analysts modeled after the desks of the world's most respected investment houses, then synthesizes their structured verdicts into a single Buy / Hold / Sell recommendation over a 3 to 6 month horizon.
 
 Each specialist reasons independently with its own toolset and persona. A committee orchestrator reads all seven verdicts, computes a deterministic weighted score, and writes a portfolio manager style memo with position sizing, stop loss, and a real catalyst calendar pulled live from market data.
 
@@ -37,11 +37,12 @@ The system is built for actual buyside use. Every number is sourced. Every catal
 | Specialist | Discipline | Default Weight |
 |---|---|---:|
 | J.P. Morgan | Fundamental | 25% |
-| Bridgewater Associates | All-Weather Macro | 20% |
-| Goldman Sachs | Technical | 15% |
-| Citadel | Quantitative | 15% |
-| Renaissance Technologies | Pattern Recognition | 10% |
+| Bridgewater Associates | All-Weather Macro | 18% |
+| Goldman Sachs | Technical | 12% |
+| Citadel | Quantitative | 12% |
+| Jane Street | ETF & Basket Flow | 10% |
 | D. E. Shaw | Options-Derived | 10% |
+| Renaissance Technologies | Pattern Recognition | 8% |
 | Two Sigma | Backtest Sanity | 5% |
 
 Each persona has its own multi-bullet analysis framework, its own tool set, and its own voice. The orchestrator can override the default weights when conviction or data quality justifies it, but must explain the override in writing.
@@ -119,11 +120,12 @@ Required API keys (free tiers are sufficient):
           - Bridgewater Macro
           - GS Technical
           - Citadel Quant
-          - Renaissance Pattern
+          - Jane Street ETF
           - DE Shaw Options
+          - Renaissance Pattern
           - Two Sigma Backtest
                       |
-            7 structured AgentVerdicts
+            8 structured AgentVerdicts
                       |
                 Orchestrator
         (deterministic weighted score
@@ -137,7 +139,7 @@ Required API keys (free tiers are sufficient):
               render in UI / CLI
 ```
 
-Each specialist is a standalone OpenAI Agents SDK agent with output_type=AgentVerdict. The fan-out is rate-limited to 3 concurrent calls (Semaphore) with exponential backoff on RateLimitError. The orchestrator is given the ticker's current price, today's date, and a real catalyst calendar fetched live from yfinance, so its output cannot hallucinate temporal facts.
+Each specialist is a standalone OpenAI Agents SDK agent with output_type=AgentVerdict. The fan-out is rate-limited to 3 concurrent calls (Semaphore) with exponential backoff on RateLimitError, so the eight agents finish in roughly 30 to 50 seconds end-to-end. The orchestrator is given the ticker's current price, today's date, and a real catalyst calendar fetched live from yfinance, so its output cannot hallucinate temporal facts.
 
 <br>
 
@@ -177,7 +179,7 @@ All data tools are memoized per-run via a ContextVar cache, so the seven paralle
 
 - Python 3.11+ with [uv](https://docs.astral.sh/uv/) for dependency management
 - [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) for tool-using agents with structured output
-- GPT-4o-mini for the seven specialists, GPT-4o for the orchestrator
+- GPT-4o-mini for the eight specialists, GPT-4o for the orchestrator
 - Pydantic v2 for structured output validation
 - Gradio for the web UI (hot-reload via gradio app.py)
 - Rich for the CLI
@@ -214,8 +216,9 @@ equity-trader/
 │       ├── bridgewater_macro.py
 │       ├── gs_technical.py
 │       ├── citadel_quant.py
-│       ├── renaissance_pattern.py
+│       ├── jane_street_etf.py
 │       ├── de_shaw_options.py
+│       ├── renaissance_pattern.py
 │       └── two_sigma_backtest.py
 ├── tests/                      # 57 unit + integration tests
 └── docs/
@@ -239,7 +242,7 @@ uv run pytest -m slow
 uv run pytest
 ```
 
-Mock layer covers all 7 agents, the orchestrator, the runner, the scoring math, persistence, the cache, and the schemas. Integration tests hit real APIs on stable tickers (AAPL).
+Mock layer covers all 8 agents, the orchestrator, the runner, the scoring math, persistence, the cache, and the schemas. Integration tests hit real APIs on stable tickers (AAPL).
 
 <br>
 

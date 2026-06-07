@@ -5,10 +5,10 @@ def test_weights_sum_to_100():
     assert abs(sum(AGENT_WEIGHTS.values()) - 100.0) < 1e-6
 
 
-def test_all_seven_agents_have_models():
+def test_all_eight_agents_have_models():
     expected = {"jpm_fundamental", "bridgewater_macro", "gs_technical",
-                "citadel_quant", "renaissance_pattern", "de_shaw_options",
-                "two_sigma_backtest"}
+                "citadel_quant", "jane_street_etf", "renaissance_pattern",
+                "de_shaw_options", "two_sigma_backtest"}
     assert set(AGENT_WEIGHTS.keys()) == expected
     assert set(AGENT_MODELS.keys()) == expected
 

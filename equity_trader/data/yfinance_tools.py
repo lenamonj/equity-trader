@@ -197,6 +197,101 @@ def compute_factor_loads(ticker: str, peers: list[str]) -> dict:
     }
 
 
+# Yahoo / yfinance sector strings -> primary SPDR sector ETF symbol. Used by
+# the Jane Street ETF Observer agent to anchor relative-value comparisons.
+_SECTOR_ETF = {
+    "Technology":              "XLK",
+    "Financial Services":      "XLF",
+    "Healthcare":              "XLV",
+    "Communication Services":  "XLC",
+    "Consumer Cyclical":       "XLY",
+    "Consumer Defensive":      "XLP",
+    "Energy":                  "XLE",
+    "Industrials":             "XLI",
+    "Basic Materials":         "XLB",
+    "Real Estate":             "XLRE",
+    "Utilities":               "XLU",
+}
+
+
+def _window_return(df, days: int) -> float | None:
+    if df is None or len(df) < days + 1:
+        return None
+    try:
+        return float(df["Close"].iloc[-1] / df["Close"].iloc[-days] - 1.0)
+    except Exception:
+        return None
+
+
+def _beta(ticker_df, market_df) -> float | None:
+    if ticker_df is None or market_df is None:
+        return None
+    try:
+        t = ticker_df["Close"].pct_change().dropna()
+        m = market_df["Close"].pct_change().dropna()
+        joined = pd.concat([t, m], axis=1, join="inner").dropna()
+        if len(joined) < 30:
+            return None
+        cov = joined.iloc[:, 0].cov(joined.iloc[:, 1])
+        var = joined.iloc[:, 1].var()
+        return float(cov / var) if var > 0 else None
+    except Exception:
+        return None
+
+
+@cached_for_run
+def get_etf_landscape(ticker: str) -> dict:
+    """Return ETF-flow and sector-rotation context for a single ticker.
+
+    Fields:
+      - sector: yfinance sector string (or None)
+      - sector_etf: primary SPDR sector ETF symbol (or None)
+      - ticker_return_1m/3m/6m: returns over those windows
+      - spy_return_1m/3m/6m: SPY benchmark returns over the same windows
+      - sector_etf_return_1m/3m/6m: sector ETF returns
+      - beta_to_spy: 1y daily-return beta vs SPY
+      - beta_to_sector: 1y daily-return beta vs sector ETF
+      - recent_volume_vs_60d_avg: trailing-5d avg volume / trailing-60d avg
+    """
+    _throttle()
+    info = yf.Ticker(ticker).info or {}
+    sector = info.get("sector")
+    sector_etf = _SECTOR_ETF.get(sector)
+
+    ticker_df = get_price_history(ticker, period="1y", interval="1d")
+    try:
+        spy_df = get_price_history("SPY", period="1y", interval="1d")
+    except Exception:
+        spy_df = None
+    sector_df = None
+    if sector_etf:
+        try:
+            sector_df = get_price_history(sector_etf, period="1y", interval="1d")
+        except Exception:
+            sector_df = None
+
+    avg_60 = float(ticker_df["Volume"].tail(60).mean()) if len(ticker_df) >= 60 else None
+    recent_5 = float(ticker_df["Volume"].tail(5).mean()) if len(ticker_df) >= 5 else None
+    vol_ratio = (recent_5 / avg_60) if (avg_60 and avg_60 > 0) else None
+
+    return {
+        "sector": sector,
+        "sector_etf": sector_etf,
+        "ticker_return_1m":     _window_return(ticker_df, 21),
+        "ticker_return_3m":     _window_return(ticker_df, 63),
+        "ticker_return_6m":     _window_return(ticker_df, 126),
+        "spy_return_1m":        _window_return(spy_df, 21),
+        "spy_return_3m":        _window_return(spy_df, 63),
+        "spy_return_6m":        _window_return(spy_df, 126),
+        "sector_etf_return_1m": _window_return(sector_df, 21),
+        "sector_etf_return_3m": _window_return(sector_df, 63),
+        "sector_etf_return_6m": _window_return(sector_df, 126),
+        "beta_to_spy":          _beta(ticker_df, spy_df),
+        "beta_to_sector":       _beta(ticker_df, sector_df),
+        "recent_volume_vs_60d_avg": vol_ratio,
+    }
+
+
 @cached_for_run
 def compute_statistical_patterns(ticker: str) -> dict:
     df = get_price_history(ticker, period="2y", interval="1d")

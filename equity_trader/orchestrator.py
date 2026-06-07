@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 _INSTRUCTIONS = """You are the head of a multi-strategy investment committee.
-Seven specialist agents have each analyzed the ticker. Your job is to
+Eight specialist agents have each analyzed the ticker. Your job is to
 synthesize their structured verdicts into a final BUY / HOLD / SELL for the
 3-6 month horizon.
 

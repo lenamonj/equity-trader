@@ -88,3 +88,33 @@ def test_compute_factor_loads_runs(monkeypatch):
     _fake_history(monkeypatch)
     out = yft.compute_factor_loads("NVDA", peers=["AMD", "INTC"])
     assert {"momentum_12_1", "volatility_60d", "rel_strength_vs_peers"}.issubset(out.keys())
+
+
+def test_get_etf_landscape_returns_keys(monkeypatch):
+    from equity_trader.data.cache import reset_run_cache
+    reset_run_cache()
+
+    rng = np.random.default_rng(7)
+    prices = 100 + np.cumsum(rng.normal(0.05, 1.0, 300))
+    df = pd.DataFrame({
+        "Open": prices, "High": prices + 0.5, "Low": prices - 0.5,
+        "Close": prices, "Volume": rng.integers(1_000_000, 5_000_000, 300),
+    }, index=pd.date_range("2024-01-01", periods=300, freq="B"))
+
+    class FakeTicker:
+        info = {"sector": "Technology", "industry": "Semiconductors"}
+        def history(self, period, interval):
+            return df
+
+    monkeypatch.setattr(yft.yf, "Ticker", lambda t: FakeTicker())
+    out = yft.get_etf_landscape("NVDA")
+    expected = {
+        "sector", "sector_etf",
+        "ticker_return_1m", "ticker_return_3m", "ticker_return_6m",
+        "spy_return_1m", "spy_return_3m", "spy_return_6m",
+        "sector_etf_return_1m", "sector_etf_return_3m", "sector_etf_return_6m",
+        "beta_to_spy", "beta_to_sector",
+        "recent_volume_vs_60d_avg",
+    }
+    assert expected.issubset(out.keys())
+    assert out["sector_etf"] == "XLK"  # Technology -> XLK

@@ -27,15 +27,16 @@ _AGENT_PERSONAS: dict[str, tuple[str, str]] = {
     "bridgewater_macro":    ("Bridgewater Associates",   "All-Weather Macro"),
     "gs_technical":         ("Goldman Sachs",            "Technical"),
     "citadel_quant":        ("Citadel",                  "Quantitative"),
-    "renaissance_pattern":  ("Renaissance Technologies", "Pattern Recognition"),
+    "jane_street_etf":      ("Jane Street",              "ETF & Basket Flow"),
     "de_shaw_options":      ("D. E. Shaw",               "Options-Derived"),
+    "renaissance_pattern":  ("Renaissance Technologies", "Pattern Recognition"),
     "two_sigma_backtest":   ("Two Sigma",                "Backtest Sanity"),
 }
 
 # Default weights order (heaviest first) so the grid reads top-to-bottom by importance.
 _AGENT_ORDER = [
     "jpm_fundamental", "bridgewater_macro", "gs_technical", "citadel_quant",
-    "renaissance_pattern", "de_shaw_options", "two_sigma_backtest",
+    "jane_street_etf", "de_shaw_options", "renaissance_pattern", "two_sigma_backtest",
 ]
 
 
@@ -1041,6 +1042,7 @@ footer, .show-api, .built-with, .footer { display: none !important; }
 .loading-roster span:nth-child(5) { animation-delay: 0.4s; }
 .loading-roster span:nth-child(6) { animation-delay: 0.5s; }
 .loading-roster span:nth-child(7) { animation-delay: 0.6s; }
+.loading-roster span:nth-child(8) { animation-delay: 0.7s; }
 @keyframes shimmer {
   0%, 100% { opacity: 0.5; }
   50%      { opacity: 1; color: var(--navy); border-color: var(--gold); }
