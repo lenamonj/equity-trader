@@ -16,6 +16,7 @@ equity_trader.db-wal
 # IDE
 .idea/
 .vscode/
+.claude/
 
 # OS
 Thumbs.db
