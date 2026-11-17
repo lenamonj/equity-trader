@@ -178,7 +178,7 @@ All market data is free. No paid feeds.
 | yfinance | Prices, valuation multiples, analyst targets, options, earnings and dividend dates |
 | FRED | Rates, inflation, unemployment, financial conditions, VIX |
 
-Companies that file no US-GAAP statements with the SEC, such as IFRS filers, fall back to yfinance statements, and the report says so.
+Companies that file no US-GAAP statements with the SEC, such as IFRS filers, fall back to yfinance statements, and the desk is told which source it received.
 
 <br>
 
