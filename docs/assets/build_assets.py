@@ -197,8 +197,8 @@ def architecture(f: dict, t: dict) -> str:
         line(655, cy, 690, cy, t["gold"]),
         f["mono"].draw("8 SPECIALISTS, 3 AT A TIME, BACKOFF ON 429", 455, 104, 9, t["ink4"],
                        "middle", tracking=0.14),
-        f["mono"].draw("SHARED PER-RUN CACHE: YFINANCE, SEC EDGAR, FRED", 455, last_cy + 46,
-                       9, t["ink4"], "middle", tracking=0.14),
+        f["mono"].draw("THE GATHERER FETCHES ALL DATA FIRST: YFINANCE, SEC, FRED", 455,
+                       last_cy + 46, 9, t["ink4"], "middle", tracking=0.14),
     ]
     for i, (_, firm, discipline) in enumerate(DESKS):
         y = row_y + i * pitch
@@ -234,8 +234,9 @@ def architecture(f: dict, t: dict) -> str:
         f["mono"].draw("SQLITE + JSON SNAPSHOT", 1119, oc + 104, 9, t["ink4"], "middle",
                        tracking=0.14),
     ]
-    return svg(540, "Architecture: a ticker fans out to eight specialist agents, three at a "
-                    "time, sharing one data cache; the orchestrator combines a deterministic "
+    return svg(540, "Architecture: the gatherer fetches the data, then a ticker fans out to "
+                    "eight specialist agents, three at a time, reading it from one cache; "
+                    "the orchestrator combines a deterministic "
                     "weighted score with an LLM memo and live catalysts into one verdict, "
                     "persisted to SQLite and JSON.", b, t)
 

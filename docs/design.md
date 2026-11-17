@@ -15,6 +15,8 @@ ticker
   |
 reset the per-run cache, fetch the quote        runner.py
   |
+the gatherer fetches every desk's data          gatherer.py
+  |
 eight specialists, three at a time              runner.py, agents/
   |
 eight AgentVerdict objects
@@ -30,7 +32,15 @@ SQLite row + JSON snapshot                      persistence.py
 web UI or terminal report                       app.py, run.py
 ```
 
-`analyze_ticker(ticker, on_verdict=None)` in `runner.py` is the single entry point. The web UI and the CLI both call it, and both use `on_verdict` to show each desk's call as it arrives.
+`analyze_ticker(ticker, on_verdict=None, on_gathered=None)` in `runner.py` is the single entry point. The web UI and the CLI both call it. Both use `on_gathered` to show that the data is in and `on_verdict` to show each desk's call as it arrives.
+
+### The gatherer
+
+`gather(ticker)` in `gatherer.py` calls every desk tool that needs only the ticker, 33 of the 35, once each and one at a time, before any desk starts. The results land in the per-run cache, so a desk's tool call is answered from memory. The two tools it leaves out are the FRED search and series lookup, whose arguments a desk chooses for itself.
+
+It is code, not a model, because nothing about it needs judgment: what to fetch is the desks' own tool lists. Tools are declared with `desk_tool` (`agents/base.py`), which registers the plain function next to the SDK tool so the gatherer can call it.
+
+It exists because of how the providers behave under load. Eight desks asking at once sent hundreds of requests to FRED in a second, and Yahoo refused a different request on every run. Fetched in sequence, a run makes about 116 Yahoo, 62 FRED and 12 SEC requests over about 20 seconds, and none is refused. A tool that fails in the gatherer is logged and left for the desk, which tries again and reports what it gets.
 
 ## The committee
 
@@ -111,7 +121,7 @@ Sourced catalysts are the company's earnings and dividend dates and the schedule
 
 ## Data layer
 
-All market data is free. Tools are memoized per run by `cached_for_run` (`data/cache.py`), a `ContextVar` cache reset at the start of each run, so eight agents share one fetch and concurrent runs stay isolated. The macro dashboard is the exception: it is about fifty requests and does not change within a day, so a complete one is kept for the day.
+All market data is free. Tools are memoized per run by `cached_for_run` (`data/cache.py`), a `ContextVar` cache reset at the start of each run. The gatherer fills it, the desks read from it, and concurrent runs stay isolated. When two callers ask for the same thing at the same moment, the first fetches and the second waits. The macro dashboard is the exception: it is about fifty requests and does not change within a day, so a complete one is kept for the day.
 
 | Module | Source | Provides |
 |---|---|---|
@@ -168,6 +178,8 @@ The pattern and backtest desks work from the stock's full price history.
 ## Failure handling
 
 - **Bad ticker:** `get_quote` raises, the run stops, the UI shows an error card and the CLI exits 1. No LLM cost is incurred.
+- **Failed fetch in the gatherer:** logged with the tool's name and left uncached, so the desk that needs it tries once more.
+- **Refused by Yahoo:** yfinance hands a refused request back as an empty result. `yfinance_tools` checks every response, retries a 401, 403 or 429 once after two seconds, and raises `DataFetchError` if it is refused again.
 - **Failed tool:** the error is returned to the model as the tool's result, and the desk carries on with what it has.
 - **Rate limits:** a semaphore runs three agents at a time. An OpenAI 429 is retried after 8, 16 and 32 seconds.
 - **Failed desk:** any other exception, or a fourth 429, becomes a HOLD placeholder with `error_note` set. The desk is shown as failed and excluded from the score.

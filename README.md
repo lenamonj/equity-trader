@@ -113,13 +113,14 @@ Every desk's reasoning stays on the page. Nothing is averaged away.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture-dark.svg">
-  <img src="docs/assets/architecture-light.svg" width="100%" alt="A ticker fans out to eight specialist agents, three at a time, sharing one data cache. The orchestrator combines a deterministic score, an LLM memo and live catalysts into one verdict, saved to SQLite and JSON.">
+  <img src="docs/assets/architecture-light.svg" width="100%" alt="The gatherer fetches the data, then a ticker fans out to eight specialist agents, three at a time, reading it from one cache. The orchestrator combines a deterministic score, an LLM memo and live catalysts into one verdict, saved to SQLite and JSON.">
 </picture>
 
 - **Independent specialists.** Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its output type. No desk sees another's work. Desks share context, never conclusions.
 - **The model interprets; code computes.** Ratios, indicators, event studies and backtests are calculated in code. No desk does arithmetic or recalls a fact from memory.
+- **A gatherer before the desks.** One component fetches everything the desks will read, one request stream at a time, before any desk starts. It is code, not a model: what to fetch is fixed by the desks' tool lists. The desks then read from a per-run `ContextVar` cache and make no calls to the data providers, apart from a FRED lookup a desk chooses for itself.
 - **Rate-limit aware fan-out.** A semaphore runs three agents at a time, with exponential backoff on `RateLimitError`.
-- **One fetch per run.** Data tools are memoized in a per-run `ContextVar` cache, so eight agents share fetches instead of hammering the APIs. The macro dashboard is fetched once a day.
+- **No silent gaps.** A request Yahoo refuses is retried once after a pause and then raises, so a desk sees a failed fetch as a failure and not as empty data.
 - **Temporal grounding.** The orchestrator is handed today's date, the current price, and a real catalyst calendar. Any catalyst dated outside the horizon is dropped in code.
 - **Events, not just numbers.** The fundamental desk reads the company's five most recent 8-Ks in full, so a CEO departure, an acquisition or a new guarantee is weighed in the call before it shows up in any statement.
 - **Dated inputs, honest statistics.** Every reading carries its observation date. Every statistical claim carries its sample size and the baseline it has to beat, so a stale number or a fake edge is visible to the chair.
@@ -212,7 +213,7 @@ uv run pytest -m slow         # integration: live yfinance and SEC EDGAR
 uv run pytest                 # everything
 ```
 
-The mocked tier covers every data tool and study on constructed inputs, all eight agents and their tool wiring, the orchestrator, the runner, the scoring math, persistence, the cache and the schemas.
+The mocked tier covers every data tool and study on constructed inputs, all eight agents and their tool wiring, the gatherer, the orchestrator, the runner, the scoring math, persistence, the cache and the schemas.
 
 <br>
 
@@ -233,7 +234,8 @@ equity-trader/
 │   ├── exceptions.py
 │   ├── scoring.py              # deterministic weighted score
 │   ├── orchestrator.py         # LLM synthesizer + mechanical fallback
-│   ├── runner.py               # async fan-out with rate-limit handling
+│   ├── gatherer.py             # fetches the run's data before the desks start
+│   ├── runner.py               # gatherer, then async fan-out, then the chair
 │   ├── persistence.py          # SQLite + JSON snapshots
 │   ├── ui.css                  # web UI stylesheet
 │   ├── data/
@@ -248,7 +250,7 @@ equity-trader/
 │   │   ├── market_tools.py     # cross-asset, sectors, ETFs, stress history
 │   │   └── calendar_tools.py   # real upcoming catalysts
 │   └── agents/
-│       ├── base.py             # agent factory + shared rules
+│       ├── base.py             # agent factory, tool registry, shared rules
 │       ├── shared_tools.py     # context tools every desk has
 │       ├── jpm_fundamental.py
 │       ├── bridgewater_macro.py
