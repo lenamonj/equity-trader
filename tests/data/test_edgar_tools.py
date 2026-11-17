@@ -57,7 +57,9 @@ def test_recent_8ks_carry_named_items_and_text():
 
 
 def _fact(val, end, form, filed, start=None):
-    row = {"val": val, "end": end, "form": form, "filed": filed}
+    quarter = {"03": "Q1", "06": "Q2", "09": "Q3", "12": "FY"}[end[5:7]]
+    row = {"val": val, "end": end, "form": form, "filed": filed,
+           "fy": int(end[:4]), "fp": quarter}
     if start:
         row["start"] = start
     return row
@@ -117,6 +119,12 @@ def test_financial_statements_as_filed():
     assert (year["period_end"], year["form"], year["filed"]) == (
         "2025-12-31", "10-K", "2026-02-01")
     assert year["net_income"] == 480  # the proxy statement's figure is ignored
+    assert (year["period"], year["years_ago"]) == ("FY2025", 0)
+    assert year["ratios"]["net_margin"] == 0.24
+    assert year["ratios"]["free_cash_flow_to_net_income"] == pytest.approx(530 / 480, abs=1e-4)
+    assert year["ratios"]["return_on_equity"] == 0.16
+    assert year["ratios"]["net_income_growth_yoy"] == pytest.approx(480 / 900 - 1, abs=1e-4)
+    assert year["ratios"]["gross_margin"] is None  # no gross profit filed
     assert year["revenue"] == 2000
     assert year["free_cash_flow"] == 530
     assert year["stockholders_equity"] == 3000
@@ -129,6 +137,12 @@ def test_financial_statements_as_filed():
     assert q2["net_income"] == 110
     assert q1["net_income"] == 105            # restated value
     assert q1["filed"] == "2025-05-01"        # first reported
+    assert [q["period"] for q in (q4, q3, q2, q1)] == [
+        "Q4 FY2025", "Q3 FY2025", "Q2 FY2025", "Q1 FY2025"]
+    assert [q["quarters_ago"] for q in (q4, q3, q2, q1)] == [0, 1, 2, 3]
+    assert out["summary"]["trailing_12_months"] == {
+        "through": "2025-12-31", "revenue": None, "net_income": 485, "free_cash_flow": None}
+    assert out["summary"]["revenue_cagr_3y"] is None
 
 
 @respx.mock
@@ -148,3 +162,40 @@ def test_financial_statements_live():
     out = et.get_financial_statements("AAPL")
     assert len(out["annual"]) == 4 and len(out["quarterly"]) == 5
     assert out["annual"][0]["revenue"] > 0
+
+
+@respx.mock
+def test_earnings_release_returns_opening_and_outlook_of_each_exhibit():
+    respx.get("https://www.sec.gov/files/company_tickers.json").mock(
+        return_value=httpx.Response(200, json=_TICKERS_JSON))
+    respx.get("https://data.sec.gov/submissions/CIK0000320193.json").mock(
+        return_value=httpx.Response(200, json={"filings": {"recent": {
+            "form": ["8-K", "8-K"], "filingDate": ["2026-11-12", "2026-08-26"],
+            "primaryDocument": ["a.htm", "b.htm"], "accessionNumber": ["1-1", "2-2"],
+            "items": ["5.02", "2.02,9.01"]}}}))
+    folder = "https://www.sec.gov/Archives/edgar/data/320193/22"
+    respx.get(f"{folder}/index.json").mock(return_value=httpx.Response(200, json={
+        "directory": {"item": [{"name": "b.htm"}, {"name": "R1.htm"}, {"name": "pr.htm"},
+                               {"name": "22-index.html"}, {"name": "data.xsd"}]}}))
+    body = ("<p>Record revenue.</p>" + "<p>filler</p>" * 60
+            + "<p>Outlook Revenue of $108 billion.</p>")
+    respx.get(f"{folder}/pr.htm").mock(return_value=httpx.Response(200, text=body))
+
+    out = et.get_earnings_release("AAPL")
+
+    assert out["filing_date"] == "2026-08-26"
+    assert [e["document"] for e in out["exhibits"]] == ["pr.htm"]
+    assert out["exhibits"][0]["opening"].startswith("Record revenue.")
+    assert out["exhibits"][0]["outlook"] == "Outlook Revenue of $108 billion."
+
+
+@respx.mock
+def test_earnings_release_raises_when_no_results_8k_exists():
+    respx.get("https://www.sec.gov/files/company_tickers.json").mock(
+        return_value=httpx.Response(200, json=_TICKERS_JSON))
+    respx.get("https://data.sec.gov/submissions/CIK0000320193.json").mock(
+        return_value=httpx.Response(200, json={"filings": {"recent": {
+            "form": ["8-K"], "filingDate": ["2026-11-12"], "primaryDocument": ["a.htm"],
+            "accessionNumber": ["1-1"], "items": ["5.02"]}}}))
+    with pytest.raises(DataFetchError):
+        et.get_earnings_release("AAPL")
