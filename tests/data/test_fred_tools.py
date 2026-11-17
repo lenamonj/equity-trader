@@ -43,3 +43,11 @@ def test_macro_snapshot_dates_every_reading_and_survives_a_missing_cpi_month(mon
     assert snap["cpi_yoy"] == pytest.approx((113.0 / 101.0 - 1.0) * 100.0)
     assert snap["as_of"]["dgs10"] == "2026-02-01"
     assert set(snap["as_of"]) == set(snap) - {"as_of"}
+
+
+def test_sector_macro_dates_every_reading(monkeypatch):
+    reset_run_cache()
+    monkeypatch.setattr(ft, "Fred", FakeFred)
+    out = ft.get_sector_macro("Energy")
+    assert out["dcoilwtico"] == 10.0
+    assert out["as_of"] == {"dcoilwtico": "2024-10-01", "dhhngsp": "2024-10-01"}

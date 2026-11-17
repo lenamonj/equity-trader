@@ -229,17 +229,16 @@ equity-trader/
 │       ├── renaissance_pattern.py
 │       └── two_sigma_backtest.py
 ├── tests/                      # unit + integration tests
-├── .github/workflows/ci.yml    # unit tests on every push
+├── .github/workflows/ci.yml    # lint + unit tests on every push
 └── docs/
-    ├── design/                 # full system design spec
-    ├── plan/                   # TDD implementation plan
+    ├── design.md               # system design
     ├── assets/                 # README plates + their generator
     └── screenshots/
 ```
 
 </details>
 
-The [system design spec](docs/design/2026-06-07-equitytrader-design.md) and the [implementation plan](docs/plan/2026-06-07-equitytrader-implementation.md) are checked in.
+The full design is in [docs/design.md](docs/design.md).
 
 <br>
 

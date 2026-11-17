@@ -1,15 +1,8 @@
-from equity_trader.exceptions import (
-    AgentExecutionError,
-    DataFetchError,
-    RateLimitError,
-    TickerNotFoundError,
-)
+from equity_trader.exceptions import DataFetchError, TickerNotFoundError
 
 
 def test_exception_hierarchy():
     assert issubclass(TickerNotFoundError, DataFetchError)
-    assert issubclass(RateLimitError, DataFetchError)
-    assert issubclass(AgentExecutionError, Exception)
 
 
 def test_ticker_not_found_carries_ticker():

@@ -21,11 +21,8 @@ AGENT_MODELS: dict[str, ModelSpec] = {
     "two_sigma_backtest":  ModelSpec("openai",   "gpt-6-luna"),
 }
 
-# Weights total exactly 100. Jane Street takes 10 by trimming the agents
-# whose discipline most overlaps with ETF flow / sector rotation: Citadel
-# (cross-sectional) -3, GS Technical (relative strength) -3, Bridgewater
-# (macro regime partially captured by sector ETFs) -2, Renaissance
-# (statistical signals) -2.
+# Weights total exactly 100. Fundamentals and macro lead; the backtest is a
+# sanity check and carries the least.
 AGENT_WEIGHTS: dict[str, float] = {
     "jpm_fundamental":     25.0,
     "bridgewater_macro":   18.0,

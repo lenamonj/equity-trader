@@ -14,10 +14,9 @@ from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
 log = logging.getLogger(__name__)
 
 
-# Cap parallel LLM calls so we stay under OpenAI per-org token/request rate
-# limits. With 8 ~3-4k-token system prompts firing simultaneously, Tier-1
-# accounts hit 429s; 3 concurrent keeps headroom while still finishing a
-# full ticker run in ~20-40s.
+# Cap parallel LLM calls to stay under OpenAI per-org rate limits: eight
+# agents firing at once hit 429s on Tier-1 accounts. Three at a time keeps
+# headroom, and a full ticker run takes about a minute and a half.
 _AGENT_CONCURRENCY = 3
 
 # Exponential backoff schedule (seconds) for OpenAI 429s. Total wait ~56s

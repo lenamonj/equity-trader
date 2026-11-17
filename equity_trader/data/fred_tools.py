@@ -36,8 +36,11 @@ def _latest(series_id: str) -> tuple[float | None, str | None]:
         return None, None
 
 
-def _last_or_none(series_id: str) -> float | None:
-    return _latest(series_id)[0]
+def _dated(readings: dict[str, tuple[float | None, str | None]]) -> dict:
+    """Values by key, plus an `as_of` map of each value's observation date."""
+    out: dict = {k: value for k, (value, _) in readings.items()}
+    out["as_of"] = {k: as_of for k, (_, as_of) in readings.items()}
+    return out
 
 
 def _cpi_yoy() -> tuple[float | None, str | None]:
@@ -54,7 +57,7 @@ def _cpi_yoy() -> tuple[float | None, str | None]:
 
 @cached_for_run
 def get_macro_snapshot() -> dict:
-    readings = {
+    return _dated({
         "dgs10": _latest("DGS10"),
         "dgs2": _latest("DGS2"),
         "t10y2y": _latest("T10Y2Y"),
@@ -63,10 +66,7 @@ def get_macro_snapshot() -> dict:
         "fedfunds": _latest("FEDFUNDS"),
         "nfci": _latest("NFCI"),
         "vix": _latest("VIXCLS"),
-    }
-    snapshot: dict = {k: value for k, (value, _) in readings.items()}
-    snapshot["as_of"] = {k: as_of for k, (_, as_of) in readings.items()}
-    return snapshot
+    })
 
 
 # Sector -> macro series mapping for the Bridgewater agent
@@ -85,4 +85,4 @@ _SECTOR_SERIES = {
 @cached_for_run
 def get_sector_macro(sector: str) -> dict:
     series_ids = _SECTOR_SERIES.get(sector, [])
-    return {sid.lower(): _last_or_none(sid) for sid in series_ids}
+    return _dated({sid.lower(): _latest(sid) for sid in series_ids})

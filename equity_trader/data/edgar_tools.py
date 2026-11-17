@@ -94,14 +94,3 @@ def get_latest_10k(ticker: str) -> dict:
 @cached_for_run
 def get_latest_10q(ticker: str) -> dict:
     return _latest_form(ticker, "10-Q")
-
-
-@cached_for_run
-def get_filing_text(accession_no: str, cik: str, primary_document: str) -> str:
-    _throttle()
-    acc_clean = accession_no.replace("-", "")
-    url = f"{_BASE}/Archives/edgar/data/{int(cik)}/{acc_clean}/{primary_document}"
-    with _client() as c:
-        r = c.get(url)
-        r.raise_for_status()
-        return r.text

@@ -7,7 +7,7 @@ from equity_trader.config import ModelSpec
 
 def test_client_for_openai(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "x")
-    c = _client_for(ModelSpec("openai", "gpt-4o"))
+    c = _client_for(ModelSpec("openai", "gpt-6-luna"))
     assert c.base_url is None or "openai.com" in str(c.base_url)
 
 

@@ -26,7 +26,7 @@ synthesize their structured verdicts into a final BUY / HOLD / SELL for the
 3-6 month horizon.
 
 You will be given:
-- TODAY's date (use it for every temporal claim — do NOT rely on training data
+- TODAY's date (use it for every temporal claim - do NOT rely on training data
   for dates).
 - Each agent's full AgentVerdict (recommendation, conviction, target, thesis,
   risks, data_cited, error_note).
