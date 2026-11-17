@@ -165,6 +165,7 @@ uv run gradio app.py        # web UI with hot reload
 | `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com) | Paid, per token |
 | `FRED_API_KEY` | [fred.stlouisfed.org](https://fred.stlouisfed.org/docs/api/api_key.html) | Free |
 | `SEC_EDGAR_USER_AGENT_EMAIL` | Your own email | Free. The SEC requires it for EDGAR access |
+| `ICE_HISTORY_FILE` | A local parquet of older ICE BofA spread observations | Optional. FRED serves three years of these series; with the file, spreads are ranked against ten |
 
 <details>
 <summary>Installing uv</summary>

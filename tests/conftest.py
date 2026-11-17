@@ -23,6 +23,7 @@ for _k, _v in _TEST_ENV.items():
 def _set_test_env(monkeypatch):
     for k, v in _TEST_ENV.items():
         monkeypatch.setenv(k, v)
+    monkeypatch.delenv("ICE_HISTORY_FILE", raising=False)
 
 
 @pytest.fixture(autouse=True)

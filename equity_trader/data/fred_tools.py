@@ -2,6 +2,7 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
+from functools import lru_cache
 
 import httpx
 import pandas as pd
@@ -27,8 +28,33 @@ def get_series(series_id: str, start: str | None = None) -> pd.Series:
         raise DataFetchError(f"FRED fetch failed for {series_id}: {exc}") from exc
     if s is None or len(s) == 0:
         raise DataFetchError(f"FRED series empty: {series_id}")
-    return s
+    return _extend(series_id, s, start)
 
+
+# FRED serves only a rolling three years of the ICE BofA index series. When
+# ICE_HISTORY_FILE names a local parquet of older observations (columns date,
+# series_id, value), they are joined in front of what FRED returns.
+@lru_cache(maxsize=1)
+def _load_local_history(path: str) -> dict[str, pd.Series]:
+    frame = pd.read_parquet(path, columns=["date", "series_id", "value"])
+    return {series_id: rows.set_index("date")["value"].sort_index()
+            for series_id, rows in frame.groupby("series_id")}
+
+
+def _local_history() -> dict[str, pd.Series]:
+    path = os.environ.get("ICE_HISTORY_FILE")
+    return _load_local_history(path) if path else {}
+
+
+def _extend(series_id: str, series: pd.Series, start: str | None) -> pd.Series:
+    """Join older local observations, from `start` on, in front of a FRED series."""
+    older = _local_history().get(series_id)
+    if older is None:
+        return series
+    older = older[older.index < series.index[0]]
+    if start:
+        older = older[older.index >= pd.Timestamp(start)]
+    return pd.concat([older.rename(series.name), series])
 
 
 # ---------------------------------------------------------------------------
@@ -198,13 +224,15 @@ def _history_start() -> str:
 def _fetch_many(series_ids: list[str]) -> dict[str, pd.Series | None]:
     """Fetch several series at once. A series that fails is logged and None."""
     client, start = _client(), _history_start()
+    _local_history()  # read once here, not by six threads at once
 
     def one(series_id: str) -> pd.Series | None:
         try:
-            return client.get_series(series_id, observation_start=start)
+            series = client.get_series(series_id, observation_start=start)
         except Exception as exc:
             log.warning("FRED series %s unavailable: %s", series_id, exc)
             return None
+        return _extend(series_id, series, start)
 
     with ThreadPoolExecutor(max_workers=6) as pool:
         return dict(zip(series_ids, pool.map(one, series_ids), strict=True))

@@ -162,7 +162,7 @@ The pattern and backtest desks work from the stock's full price history.
 
 - ETF holdings cover each fund's ten largest positions.
 - Creation and redemption flows are not available; fund volume against its average is the proxy.
-- Credit spread history on FRED starts in November 2023, so those percentiles cover three years.
+- FRED serves a rolling three years of the ICE BofA spread series. If `ICE_HISTORY_FILE` names a local parquet of older observations (columns `date`, `series_id`, `value`), `fred_tools` joins them in front of what FRED returns and spreads are ranked against ten years like every other reading. Without the file those percentiles cover three years, and `pctile_years` says so. The file is local data and is never committed.
 - The published macro release schedule usually runs to the end of the calendar year, so it can stop short of the horizon.
 
 ## Failure handling

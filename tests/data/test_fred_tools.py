@@ -24,6 +24,42 @@ def test_get_series(monkeypatch):
     assert s.name == "DGS10"
 
 
+def _local_file(tmp_path, monkeypatch):
+    """A local history file: DGS10 monthly through 2023, one row overlapping FRED."""
+    dates = pd.to_datetime(["2022-06-01", "2023-06-01", "2023-12-01", "2024-01-01"])
+    frame = pd.DataFrame({"date": dates, "series_id": "DGS10",
+                          "value": [-3.0, -2.0, -1.0, 99.0], "source": "test"})
+    path = tmp_path / "history.parquet"
+    frame.to_parquet(path)
+    monkeypatch.setenv("ICE_HISTORY_FILE", str(path))
+
+
+def test_local_history_is_joined_in_front_of_fred(monkeypatch, tmp_path):
+    monkeypatch.setattr(ft, "Fred", FakeFred)
+    _local_file(tmp_path, monkeypatch)
+    s = ft.get_series("DGS10", start="2023-01-01")
+    # From `start` on, and FRED's own value wins where the two overlap.
+    assert list(s.iloc[:3]) == [-2.0, -1.0, 1.0]
+    assert s.index.is_monotonic_increasing and s.index.is_unique and s.name == "DGS10"
+    assert len(ft.get_series("UNRATE")) == 10  # a series the file does not hold
+
+
+def test_dashboard_readings_use_local_history(monkeypatch, tmp_path):
+    monkeypatch.setattr(ft, "Fred", FakeFred)
+    _local_file(tmp_path, monkeypatch)
+    row = ft._readings([("DGS10", "10-year Treasury yield", "level")])[0]
+    assert row["pctile_years"] == 2.3  # 2022-06 to 2024-10, not FRED's ten months
+
+
+def test_a_missing_local_history_file_fails_loudly(monkeypatch, tmp_path):
+    monkeypatch.setattr(ft, "Fred", FakeFred)
+    monkeypatch.setenv("ICE_HISTORY_FILE", str(tmp_path / "absent.parquet"))
+    with pytest.raises(FileNotFoundError):
+        ft.get_series("DGS10")
+    with pytest.raises(FileNotFoundError):
+        ft._readings([("DGS10", "10-year Treasury yield", "level")])
+
+
 def _monthly(values, end="2026-10-01"):
     return pd.Series(values, index=pd.date_range(end=end, periods=len(values), freq="MS"))
 
