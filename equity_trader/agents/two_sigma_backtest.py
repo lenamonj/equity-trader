@@ -204,6 +204,9 @@ Example:
    rate, edge after cost -1.2%, t -0.24 - no edge."
 Put the FINDINGS in thesis. Put what could be wrong with them in risks
 (survivorship bias, single-ticker fragility, regime change risk).
+In `evidence`, start each metric with the rule and say whether it is a long
+or a short rule: an edge is measured in the rule's own direction, so a
+positive edge on a short rule is bearish for the stock.
 
 {shared_rules_block()}
 

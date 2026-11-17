@@ -32,7 +32,7 @@ def _desk(name, rec="HOLD", err=None):
 def test_a_desk_card_shows_its_evidence_and_how_much_was_found_in_the_data():
     html = app._agent_card_html("jpm_fundamental", _desk("jpm_fundamental"))
     assert "Revenue, &lt;i&gt;Q2&lt;/i&gt;" in html and "$96.2B" in html
-    assert "75.00%" in html and "-29.01%" in html and "9.69x" in html
+    assert "75.00%" in html and "-29.01%" in html and ">9.69<" in html
     assert 'class="sig sig-bullish"' in html and 'class="sig sig-neutral"' in html
     assert "4 readings cited . 3 found in the data" in html
 

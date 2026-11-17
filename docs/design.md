@@ -20,7 +20,8 @@ the gatherer fetches every desk's data          gatherer.py
 eight specialists, one model call each,         runner.py, agents/
 three at a time
   |
-eight AgentVerdict objects
+eight reports, each cited number checked        runner.py, gatherer.py
+against the data
   |
 weighted score, computed in code                scoring.py
   |
@@ -47,7 +48,7 @@ It exists because of how the providers behave under load. Eight desks asking at 
 
 ## The committee
 
-Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its output type. No desk sees another's work. Weights sum to 100 and are fixed in `config.py`.
+Each desk is a standalone OpenAI Agents SDK agent that answers in its own report schema. No desk sees another's work. Weights sum to 100 and are fixed in `config.py`.
 
 Two principles govern what a desk is given:
 
@@ -75,7 +76,7 @@ Two principles govern what a desk is given:
 | Renaissance Technologies, Pattern Recognition | `renaissance_pattern` | 8 | Seasonality, earnings event study, forward-return study, volatility and gaps |
 | Two Sigma, Backtest Sanity | `two_sigma_backtest` | 5 | Rule backtest |
 
-Every prompt is a persona and framework, a description of that desk's sections, and the shared rules in `agents/base.py`: a strict 3 to 6 month horizon, the date and price taken from the snapshot, cited data points, thesis and risks on every call, nothing assumed beyond the data handed over, and `error_note` left null. A test checks that every section a prompt names is one the desk is given.
+Every prompt is a persona and framework, a description of that desk's sections, and the shared rules in `agents/base.py`: a strict 3 to 6 month horizon, the date and price taken from the snapshot, evidence copied from the data, thesis and risks on every call, and nothing assumed beyond the data handed over. A test checks that every section a prompt names is one the desk is given.
 
 ## Models
 
@@ -86,15 +87,28 @@ Every prompt is a persona and framework, a description of that desk's sections, 
 
 Routing is one `ModelSpec(provider, model)` per agent in `config.py`. `build_agent` in `agents/base.py` uses the Responses API for OpenAI and the Chat Completions API for Groq, DeepSeek and Gemini through their OpenAI-compatible endpoints. Those three providers are supported by the factory and need their own key in `.env`; none is used by the default configuration.
 
-## The verdict contract
+## The report contract
 
-Defined in `schemas.py`.
+Defined in `schemas.py`. There are two kinds of type: what a model writes, and what code builds from it.
 
-`AgentVerdict`: `agent`, `ticker`, `recommendation` (BUY, HOLD or SELL), `conviction` (1 to 10), `price_target_6mo` (optional), `thesis` (up to 6), `risks` (up to 4), `data_cited`, `error_note`.
+| Written by a model | Built in code from it |
+|---|---|
+| `DeskReport`: `evidence` (1 to 12), `thesis` (1 to 6), `risks` (1 to 4), `recommendation`, `conviction` (1 to 10), `price_target_6mo` | `AgentVerdict`: the report plus `agent`, `ticker`, `in_data` on each reading, and `error_note` |
+| `ChairMemo`: `key_agreements`, `key_disagreements`, `red_flags`, `dominant_drivers`, `synthesis`, `final_recommendation`, `conviction`, `score_departure_rationale`, `position_sizing_suggestion`, `stop_loss_level` | `OrchestratorVerdict`: the memo plus `ticker`, `run_timestamp`, `current_price`, `weighted_score`, `weights_used`, `price_target_6mo`, `catalyst_calendar`, `agent_verdicts` |
 
-`OrchestratorVerdict`: `ticker`, `run_timestamp`, `current_price`, `final_recommendation`, `conviction`, `price_target_6mo`, `weighted_score`, `weights_used`, `score_departure_rationale`, `synthesis`, `key_agreements`, `key_disagreements`, `dominant_drivers`, `red_flags`, `position_sizing_suggestion`, `stop_loss_level`, `catalyst_calendar`, `agent_verdicts`.
+An `Evidence` item is one reading: `metric`, `value` (a number), `unit` (percent, fraction, usd, ratio, count, index or other), `as_of` (a date), `source` and `signal` (bullish, bearish or neutral).
 
-`error_note` belongs to the runner. It marks a desk that failed and removes it from the score. If a model writes a caveat there, the runner moves it into `risks` and clears the field.
+Five rules shape these types:
+
+- **Enforced while the model writes.** With OpenAI the schemas run in strict mode, so the output cannot leave the schema. They use only constraints strict mode supports: enums, number ranges, item counts and date formats, and no string lengths. Other providers are validated after the fact.
+- **A desk can only cite what it was handed.** `desk_report_for(sections)` builds each desk's schema with `source` limited to that desk's own sections. `chair_memo_for(agents)` limits `dominant_drivers` to the desks on the committee.
+- **Evidence first, the call last.** A model produces the fields in schema order, so a desk writes its evidence, thesis and risks before its recommendation, and the chair writes agreements, splits and red flags before its call.
+- **A model writes only judgment.** Neither schema has a field for anything code knows. A desk cannot name itself, mark itself failed or restate the ticker. The chair cannot write the price, the score, the target, the weights, a catalyst date or the desks' reports.
+- **Cited numbers are checked.** `gatherer.check` looks for each reading's value in the section it names and sets `in_data`. A value is found when some number in that section, rounded to the precision the desk gave, equals it. Sign is ignored, and so is a fraction given as a percentage or a large amount given in thousands up to trillions. Numbers inside filing text count.
+
+The check is strong for precise readings and weak for round ones. Measured on one NVDA gather, of 500 made-up values with two decimals tested against each of the 33 sections, 0.6% were accepted; of made-up whole numbers, 30%. In the NVDA run of 2026-11-17 the desks cited 81 readings, 61 of them to two or more decimals, and all 81 were found in the section named; looked for in a different section picked at random, 14% were. The check says a number is in the data. It does not say the desk interpreted it correctly.
+
+`brief` in `gatherer.py` builds a desk's request and `_format_input` in `orchestrator.py` builds the chair's: one JSON document with the date, the horizon, the price, the score, each desk's house, weight and report, and the sourced catalysts.
 
 ## Scoring and what the model cannot change
 
@@ -104,9 +118,9 @@ score = sum( sign(recommendation) * conviction * weight ) / 100
 
 `sign` is +1 for BUY, 0 for HOLD, -1 for SELL, so the score runs from -10 to +10. A failed desk is excluded and its weight is redistributed pro rata across the rest.
 
-The orchestrator model writes the memo, the agreements and splits, the red flags, the position size, the stop level, the final recommendation and its conviction. It is given each desk's house name and told to use it in prose. The final call is a judgment and may depart from the score. A call against the score's sign must come with `score_departure_rationale`; without one, a red flag is added in code.
+The orchestrator model writes the memo, the agreements and splits, the red flags, the position size, the stop level, the final recommendation and its conviction. It refers to a desk by its house name. The final call is a judgment and may depart from the score. A call against the score's sign must come with `score_departure_rationale`; without one, a red flag is added in code.
 
-After the LLM call, `_stamp_deterministic` overwrites these fields with values computed in code:
+`orchestrator._verdict` then adds what code supplies:
 
 | Field | Source |
 |---|---|
@@ -115,11 +129,10 @@ After the LLM call, `_stamp_deterministic` overwrites these fields with values c
 | `weighted_score` | `scoring.compute_weighted_score` |
 | `price_target_6mo` | conviction-weighted average of desk targets |
 | `weights_used` | fixed weights after redistribution |
-| `agent_verdicts` | the eight verdicts as received |
-| `dominant_drivers` | filtered to valid desk names |
-| `catalyst_calendar` | sourced catalysts merged in, anything outside today to today + 180 days dropped |
+| `agent_verdicts` | the eight reports as received and checked |
+| `catalyst_calendar` | the sourced catalysts, and nothing else |
 
-Sourced catalysts are the company's earnings and dividend dates and the scheduled CPI, jobs, GDP and PCE releases.
+Sourced catalysts are the company's earnings and dividend dates and the scheduled CPI, jobs, GDP and PCE releases. The chair is given them and may cite them, but it has no field in which to write a date of its own.
 
 ## Data layer
 
@@ -183,6 +196,8 @@ The pattern and backtest desks work from the stock's full price history.
 - **Failed fetch in the gatherer:** logged with the section's name. Each desk that reads the section is told it is unavailable and why, and says so in its risks.
 - **Refused by Yahoo:** yfinance hands a refused request back as an empty result. `yfinance_tools` checks every response, retries a 401, 403 or 429 once after two seconds, and raises `DataFetchError` if it is refused again.
 - **Rate limits:** a semaphore runs three agents at a time. An OpenAI 429 is retried after 8, 16 and 32 seconds.
+- **Report outside the schema:** OpenAI enforces the schema as the model writes, so this cannot happen there. On a provider that does not, the report fails validation and the desk is treated as failed.
+- **Cited number not in the data:** the reading is kept and marked `in_data: false`, the runner logs it, and the chair is told to treat it as unconfirmed.
 - **Failed desk:** any other exception, or a fourth 429, becomes a HOLD placeholder with `error_note` set. The desk is shown as failed and excluded from the score.
 - **Failed orchestrator:** a mechanical verdict takes its place: BUY above +1, SELL below -1, HOLD otherwise, with a memo that says the synthesis was unavailable.
 

@@ -77,7 +77,7 @@ def _fmt_reading(value: float, unit: str) -> str:
         return f"{value:,.0f}"
     if unit == "fraction":
         return f"{value * 100:,.2f}%"
-    return f"{value:,.2f}" + {"percent": "%", "ratio": "x"}.get(unit, "")
+    return f"{value:,.2f}" + ("%" if unit == "percent" else "")
 
 
 def _fmt_delta(target, current) -> str:

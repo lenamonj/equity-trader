@@ -25,6 +25,7 @@ The premise is diversity in thought process: desks that read different evidence 
 <a href="#quick-start">Quick start</a> &nbsp;&middot;&nbsp;
 <a href="#the-committee">The committee</a> &nbsp;&middot;&nbsp;
 <a href="#a-run-live">A run, live</a> &nbsp;&middot;&nbsp;
+<a href="#how-the-desks-report">Structured reports</a> &nbsp;&middot;&nbsp;
 <a href="#the-report">The report</a> &nbsp;&middot;&nbsp;
 <a href="#architecture">Architecture</a> &nbsp;&middot;&nbsp;
 <a href="#how-the-verdict-is-computed">Scoring</a>
@@ -117,7 +118,7 @@ Every desk's reasoning stays on the page. Nothing is averaged away.
   <img src="docs/assets/architecture-light.svg" width="100%" alt="A ticker goes to the gatherer, which fetches every desk's data before any desk starts. Eight specialist agents are each handed their share and answer in one model call, three at a time. The orchestrator combines a deterministic score, an LLM memo and live catalysts into one verdict, saved to SQLite and JSON.">
 </picture>
 
-- **Independent specialists.** Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its output type. No desk sees another's work. Desks share context, never conclusions.
+- **Independent specialists.** Each desk is a standalone OpenAI Agents SDK agent that answers in its own report schema. No desk sees another's work. Desks share context, never conclusions.
 - **The model interprets; code computes.** Ratios, indicators, event studies and backtests are calculated in code. No desk does arithmetic or recalls a fact from memory.
 - **A gatherer before the desks.** One component fetches everything the desks will read, one request at a time, before any desk starts. It is code, not a model: what to fetch is fixed by the data each desk declares. A run makes about 60 FRED requests against a limit of 120 a minute, and the macro dashboard is kept for the day.
 - **One model call per desk.** A desk has no tools. Its data arrives in its request, it reads what bears on its discipline, and it answers once. No desk can reach a data provider.
@@ -127,6 +128,31 @@ Every desk's reasoning stays on the page. Nothing is averaged away.
 - **Events, not just numbers.** The fundamental desk reads the company's five most recent 8-Ks in full, so a CEO departure, an acquisition or a new guarantee is weighed in the call before it shows up in any statement.
 - **Dated inputs, honest statistics.** Every reading carries its observation date. Every statistical claim carries its sample size and the baseline it has to beat, so a stale number or a fake edge is visible to the chair.
 - **Graceful degradation.** A failed desk is excluded and its weight is redistributed. Only the runner can mark a desk as failed. If the orchestrator call fails, a mechanical aggregation takes its place.
+
+<br>
+
+## How the desks report
+
+Every desk answers the chair in a fixed JSON schema, and the model provider holds it to that schema while it writes. Most of a report is a list of evidence, one typed reading per item:
+
+```json
+{"metric": "RSI, 14-day", "value": 16.3, "unit": "index",
+ "as_of": "2026-11-17", "source": "technicals", "signal": "bearish", "in_data": true}
+```
+
+A short thesis, the risks and the call follow the evidence. The chair receives all eight reports as one JSON document and compares them reading by reading.
+
+| What is controlled | How |
+|---|---|
+| **Shape** | The schema is enforced as the model generates, so a report that does not fit cannot be produced: the call is BUY, HOLD or SELL, conviction is 1 to 10, every reading has a number, a unit, a date and a source. |
+| **Sources** | Each desk's schema lists only the data sections that desk was handed. It cannot cite anything else. |
+| **Order** | Evidence comes first and the call comes last, and a model writes in that order. The call follows from the evidence instead of being justified after the fact. |
+| **Ownership** | A model writes only what needs judgment. Which desk it is, the ticker, the price, the score, the target and the catalysts are added in code. The schemas have no such fields, so no model can get them wrong. |
+| **Grounding** | Code looks for every number a desk cites in the data section it names and marks it `in_data`. The chair is told to treat a reading that was not found as unconfirmed. |
+
+This is what keeps a chain of models honest. A number a desk cites that is not in its data is flagged before the chair reads it. A format cannot drift from run to run, because there is only one format. The score, the price and the target cannot be garbled in a hand-off, because code carries them and no model writes them. In the run shown above the desks cited 81 readings, and all 81 were found in the data they were handed.
+
+The check has limits. It confirms that a number is in the data, not that the desk read it correctly, and a round number such as 16 is easier to match than 16.3.
 
 <br>
 
@@ -140,9 +166,9 @@ score = sum( sign(recommendation) * conviction * weight ) / 100
 
 `sign` is +1 for BUY, 0 for HOLD and -1 for SELL. Conviction runs 1 to 10 and weights sum to 100, so the score ranges from -10 to +10.
 
-The weights are fixed in code. The orchestrator cannot change them. It reads the score and all eight verdicts, then writes a 150 to 300 word memo and makes the final call. That call is a judgment and may depart from the score, but a call against the score's sign has to come with a written rationale.
+The weights are fixed in code. The orchestrator cannot change them. It reads the score and all eight reports, then writes a 150 to 300 word memo and makes the final call. That call is a judgment and may depart from the score, but a call against the score's sign has to come with a written rationale.
 
-After the LLM call, the score, the conviction-weighted price target, the run timestamp, the current price, the agent verdicts and the sourced catalysts are stamped over whatever the model returned. The model cannot alter them. A call against the score's sign with no rationale is flagged on the report.
+The orchestrator's schema holds only its judgment. The score, the conviction-weighted price target, the run timestamp, the current price, the desks' reports and the sourced catalysts are added in code afterwards, so the model never writes them and cannot alter them. A call against the score's sign with no rationale is flagged on the report.
 
 <br>
 
@@ -232,11 +258,11 @@ equity-trader/
 ├── .env.template               # required environment variables
 ├── equity_trader/
 │   ├── config.py               # model routing + weights
-│   ├── schemas.py              # Pydantic: AgentVerdict, OrchestratorVerdict
+│   ├── schemas.py              # what a desk and the chair must answer in
 │   ├── exceptions.py
 │   ├── scoring.py              # deterministic weighted score
 │   ├── orchestrator.py         # LLM synthesizer + mechanical fallback
-│   ├── gatherer.py             # fetches the run's data, builds each desk's brief
+│   ├── gatherer.py             # fetches the data, briefs each desk, checks citations
 │   ├── runner.py               # gatherer, then async fan-out, then the chair
 │   ├── persistence.py          # SQLite + JSON snapshots
 │   ├── ui.css                  # web UI stylesheet

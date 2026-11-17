@@ -81,6 +81,9 @@ def test_get_etf_landscape_returns_keys(monkeypatch):
     }
     assert expected.issubset(out.keys())
     assert out["sector_etf"] == "XLK"  # Technology -> XLK
+    # Desks copy these numbers into their reports, so they are rounded here.
+    for key in expected - {"sector", "sector_etf"}:
+        assert out[key] is None or out[key] == round(out[key], 4), key
 
 
 def test_valuation_and_analyst_targets_are_dated(monkeypatch):

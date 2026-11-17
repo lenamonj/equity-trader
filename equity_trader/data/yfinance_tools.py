@@ -193,7 +193,7 @@ def _window_return(df, days: int) -> float | None:
     """Return over the last `days` sessions, or None if history is too short."""
     if df is None or len(df) < days + 1:
         return None
-    return float(df["Close"].iloc[-1] / df["Close"].iloc[-(days + 1)] - 1.0)
+    return num(df["Close"].iloc[-1] / df["Close"].iloc[-(days + 1)] - 1.0)
 
 
 def _beta(ticker_df, market_df) -> float | None:
@@ -207,7 +207,7 @@ def _beta(ticker_df, market_df) -> float | None:
             return None
         cov = joined.iloc[:, 0].cov(joined.iloc[:, 1])
         var = joined.iloc[:, 1].var()
-        return float(cov / var) if var > 0 else None
+        return num(cov / var, 3) if var > 0 else None
     except Exception:
         return None
 
@@ -244,7 +244,7 @@ def get_etf_landscape(ticker: str) -> dict:
 
     avg_60 = float(ticker_df["Volume"].tail(60).mean()) if len(ticker_df) >= 60 else None
     recent_5 = float(ticker_df["Volume"].tail(5).mean()) if len(ticker_df) >= 5 else None
-    vol_ratio = (recent_5 / avg_60) if (avg_60 and avg_60 > 0) else None
+    vol_ratio = num(recent_5 / avg_60, 2) if (avg_60 and avg_60 > 0) else None
 
     return {
         "as_of": as_of(ticker_df),
