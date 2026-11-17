@@ -118,3 +118,12 @@ def test_get_etf_landscape_returns_keys(monkeypatch):
     }
     assert expected.issubset(out.keys())
     assert out["sector_etf"] == "XLK"  # Technology -> XLK
+
+
+def test_horizon_expiry_skips_weeklies():
+    from datetime import date
+    from equity_trader.data.yfinance_tools import _horizon_expiry
+    today = date(2026, 11, 17)
+    expiries = ["2026-11-20", "2026-12-18", "2027-01-15", "2027-02-19", "2027-03-19"]
+    assert _horizon_expiry(expiries, today) == "2027-02-19"
+    assert _horizon_expiry(expiries[:2], today) == "2026-12-18"

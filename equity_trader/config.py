@@ -11,14 +11,14 @@ class ModelSpec:
 
 
 AGENT_MODELS: dict[str, ModelSpec] = {
-    "jpm_fundamental":     ModelSpec("openai",   "gpt-4o-mini"),
-    "bridgewater_macro":   ModelSpec("openai",   "gpt-4o-mini"),
-    "gs_technical":        ModelSpec("openai",   "gpt-4o-mini"),
-    "citadel_quant":       ModelSpec("openai",   "gpt-4o-mini"),
-    "jane_street_etf":     ModelSpec("openai",   "gpt-4o-mini"),
-    "renaissance_pattern": ModelSpec("openai",   "gpt-4o-mini"),
-    "de_shaw_options":     ModelSpec("openai",   "gpt-4o-mini"),
-    "two_sigma_backtest":  ModelSpec("openai",   "gpt-4o-mini"),
+    "jpm_fundamental":     ModelSpec("openai",   "gpt-6-luna"),
+    "bridgewater_macro":   ModelSpec("openai",   "gpt-6-luna"),
+    "gs_technical":        ModelSpec("openai",   "gpt-6-luna"),
+    "citadel_quant":       ModelSpec("openai",   "gpt-6-luna"),
+    "jane_street_etf":     ModelSpec("openai",   "gpt-6-luna"),
+    "renaissance_pattern": ModelSpec("openai",   "gpt-6-luna"),
+    "de_shaw_options":     ModelSpec("openai",   "gpt-6-luna"),
+    "two_sigma_backtest":  ModelSpec("openai",   "gpt-6-luna"),
 }
 
 # Weights total exactly 100. Jane Street takes 10 by trimming the agents
@@ -37,4 +37,4 @@ AGENT_WEIGHTS: dict[str, float] = {
     "two_sigma_backtest":   5.0,
 }
 
-ORCHESTRATOR_MODEL = ModelSpec("openai", "gpt-4o")
+ORCHESTRATOR_MODEL = ModelSpec("openai", "gpt-6.1-sol")

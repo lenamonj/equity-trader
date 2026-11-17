@@ -1,5 +1,5 @@
-import os
 import pytest
+from agents import OpenAIChatCompletionsModel, OpenAIResponsesModel
 from equity_trader.config import ModelSpec
 from equity_trader.agents.base import build_agent, _client_for, shared_rules_block
 
@@ -38,6 +38,13 @@ def test_build_agent_constructs(monkeypatch):
         output_type=dict,
     )
     assert a.name == "test_agent"
+    assert isinstance(a.model, OpenAIChatCompletionsModel)
+
+
+def test_build_agent_uses_responses_api_for_openai():
+    a = build_agent(name="t", instructions="x", tools=[],
+                    spec=ModelSpec("openai", "gpt-6-luna"), output_type=dict)
+    assert isinstance(a.model, OpenAIResponsesModel)
 
 
 def test_shared_rules_block_mentions_horizon_and_schema():

@@ -78,3 +78,15 @@ async def test_analyze_ticker_survives_one_agent_failure(monkeypatch):
 
     out = await run_mod.analyze_ticker("NVDA")
     assert isinstance(out, OrchestratorVerdict)
+
+
+@pytest.mark.asyncio
+async def test_model_written_error_note_does_not_mark_the_desk_failed():
+    # Models fill error_note with data caveats. Only the runner may set it.
+    async def caveated(t):
+        return _v("wrong_name", err="Filing contents were unavailable.")
+
+    out = await run_mod._run_one("jpm_fundamental", caveated, "NVDA")
+    assert out.error_note is None
+    assert out.agent == "jpm_fundamental"
+    assert out.risks == ["y", "Filing contents were unavailable."]

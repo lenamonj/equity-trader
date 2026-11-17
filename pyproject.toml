@@ -4,28 +4,29 @@ version = "0.1.0"
 description = "Multi-agent equity research producing 3-6 month Buy/Hold/Sell verdicts"
 requires-python = ">=3.11"
 dependencies = [
-  "openai-agents>=0.0.10",
-  "openai>=1.50.0",
-  "yfinance>=0.2.40",
-  "httpx>=0.27.0",
+  "openai-agents>=0.24.0",
+  "openai>=3.52.0",
+  "yfinance>=1.8.0",
+  "httpx>=0.28.0",
   "fredapi>=0.5.2",
-  "pandas>=2.2.0",
-  "numpy>=1.26.0",
-  "pydantic>=2.8.0",
-  "gradio>=4.40.0",
-  "rich>=13.7.0",
-  "python-dotenv>=1.0.1",
+  "pandas>=3.1.0",
+  "numpy>=2.4.0",
+  "pydantic>=2.14.0",
+  "gradio>=6.32.0",
+  "rich>=15.0.0",
+  "python-dotenv>=1.2.0",
 ]
 
 [dependency-groups]
 dev = [
-  "pytest>=8.0.0",
-  "pytest-asyncio>=0.23.0",
-  "respx>=0.21.0",
+  "pytest>=9.2.0",
+  "pytest-asyncio>=1.5.0",
+  "respx>=0.23.0",
 ]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 markers = [
   "slow: integration tests that hit real APIs (deselect with -m 'not slow')",
 ]

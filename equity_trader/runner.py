@@ -36,12 +36,23 @@ def _error_verdict(agent: str, ticker: str, exc: Exception) -> AgentVerdict:
     )
 
 
+def _stamp(v: AgentVerdict, name: str, ticker: str) -> AgentVerdict:
+    # error_note is the system's failure marker and drops a desk from the
+    # score. Models fill it with data caveats, so a returned verdict never
+    # keeps one; the caveat moves to risks when there is room.
+    risks = v.risks
+    if v.error_note and len(risks) < 4:
+        risks = [*risks, v.error_note]
+    return v.model_copy(update={"agent": name, "ticker": ticker,
+                                "risks": risks, "error_note": None})
+
+
 async def _run_one(name: str, fn: Callable[[str], Awaitable[AgentVerdict]],
                     ticker: str) -> AgentVerdict:
     last_rate_limit: Exception | None = None
     for attempt, delay in enumerate(_RATE_LIMIT_BACKOFF + [None]):
         try:
-            return await fn(ticker)
+            return _stamp(await fn(ticker), name, ticker)
         except openai.RateLimitError as e:
             last_rate_limit = e
             if delay is None:

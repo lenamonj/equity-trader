@@ -1,4 +1,6 @@
 import time
+from datetime import date
+
 import yfinance as yf
 import pandas as pd
 
@@ -49,6 +51,23 @@ def get_fundamentals(ticker: str) -> dict:
         "income_stmt": t.income_stmt.to_dict() if t.income_stmt is not None else {},
         "balance_sheet": t.balance_sheet.to_dict() if t.balance_sheet is not None else {},
         "cash_flow": t.cashflow.to_dict() if t.cashflow is not None else {},
+        "quarterly_income_stmt": (t.quarterly_income_stmt.iloc[:, :5].to_dict()
+                                  if t.quarterly_income_stmt is not None else {}),
+        "valuation": get_valuation(ticker),
+    }
+
+
+@cached_for_run
+def get_valuation(ticker: str) -> dict:
+    _throttle()
+    info = yf.Ticker(ticker).info or {}
+    return {
+        "trailing_pe": info.get("trailingPE"),
+        "forward_pe": info.get("forwardPE"),
+        "price_to_book": info.get("priceToBook"),
+        "ev_to_ebitda": info.get("enterpriseToEbitda"),
+        "peg": info.get("trailingPegRatio"),
+        "price_to_sales": info.get("priceToSalesTrailing12Months"),
     }
 
 
@@ -128,18 +147,36 @@ def get_peer_set(ticker: str) -> list[str]:
     return [p for p in peers if p.upper() != ticker.upper()]
 
 
+_MIN_OPTION_DAYS = 90  # the horizon starts at three months
+
+
+def _days_to(expiry: str, today: date) -> int:
+    return (date.fromisoformat(expiry) - today).days
+
+
+def _horizon_expiry(expiries: list[str], today: date) -> str:
+    """First expiry inside the 3-6 month horizon, else the furthest listed."""
+    for e in expiries:
+        if _days_to(e, today) >= _MIN_OPTION_DAYS:
+            return e
+    return expiries[-1]
+
+
 @cached_for_run
 def get_options_chain(ticker: str, expiry: str | None = None) -> dict:
     _throttle()
     t = yf.Ticker(ticker)
     expiries = list(t.options or [])
     if not expiries:
-        return {"expiries": [], "calls": [], "puts": [], "selected_expiry": None}
-    chosen = expiry or expiries[min(2, len(expiries) - 1)]  # ~near-term but not weeklies
+        return {"expiries": [], "calls": [], "puts": [], "selected_expiry": None,
+                "days_to_expiry": None}
+    today = date.today()
+    chosen = expiry or _horizon_expiry(expiries, today)
     chain = t.option_chain(chosen)
     return {
         "expiries": expiries,
         "selected_expiry": chosen,
+        "days_to_expiry": _days_to(chosen, today),
         "calls": chain.calls[["strike", "lastPrice", "impliedVolatility",
                               "openInterest", "volume"]].to_dict(orient="records"),
         "puts": chain.puts[["strike", "lastPrice", "impliedVolatility",
@@ -154,7 +191,8 @@ def compute_iv_stats(ticker: str) -> dict:
     puts = chain["puts"]
     if not calls or not puts:
         return {"atm_iv": None, "put_call_iv_skew": None,
-                "selected_expiry": chain["selected_expiry"]}
+                "selected_expiry": chain["selected_expiry"],
+                "days_to_expiry": chain["days_to_expiry"]}
     quote = get_quote(ticker)
     spot = quote["last_price"]
     atm_call = min(calls, key=lambda c: abs(c["strike"] - spot))
@@ -164,6 +202,7 @@ def compute_iv_stats(ticker: str) -> dict:
         "put_call_iv_skew": float(atm_put["impliedVolatility"]
                                    - atm_call["impliedVolatility"]),
         "selected_expiry": chain["selected_expiry"],
+        "days_to_expiry": chain["days_to_expiry"],
     }
 
 

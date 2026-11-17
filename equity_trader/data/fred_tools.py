@@ -25,34 +25,47 @@ def get_series(series_id: str, start: str | None = None) -> pd.Series:
     return s
 
 
-def _last_or_none(series_id: str) -> float | None:
+def _latest(series_id: str) -> tuple[float | None, str | None]:
+    """Latest observation and its date, or (None, None) if unavailable."""
     try:
-        s = get_series(series_id)
-        v = s.dropna().iloc[-1]
-        return float(v)
+        s = get_series(series_id).dropna()
+        return float(s.iloc[-1]), s.index[-1].date().isoformat()
     except Exception as exc:
         log.warning("FRED series %s unavailable: %s", series_id, exc)
-        return None
+        return None, None
+
+
+def _last_or_none(series_id: str) -> float | None:
+    return _latest(series_id)[0]
+
+
+def _cpi_yoy() -> tuple[float | None, str | None]:
+    try:
+        # Interpolate so a missing month (October 2025 was never published)
+        # does not blank the year-over-year reading twelve months later.
+        cpi = get_series("CPIAUCSL").interpolate()
+        return (float((cpi.iloc[-1] / cpi.iloc[-13] - 1.0) * 100.0),
+                cpi.index[-1].date().isoformat())
+    except Exception as exc:
+        log.warning("CPI year-over-year unavailable: %s", exc)
+        return None, None
 
 
 @cached_for_run
 def get_macro_snapshot() -> dict:
-    cpi = get_series("CPIAUCSL")
-    cpi_yoy = None
-    try:
-        cpi_yoy = float((cpi.iloc[-1] / cpi.iloc[-13] - 1.0) * 100.0)
-    except Exception as exc:
-        log.warning("CPI year-over-year unavailable: %s", exc)
-    return {
-        "dgs10": _last_or_none("DGS10"),
-        "dgs2": _last_or_none("DGS2"),
-        "t10y2y": _last_or_none("T10Y2Y"),
-        "cpi_yoy": cpi_yoy,
-        "unrate": _last_or_none("UNRATE"),
-        "fedfunds": _last_or_none("FEDFUNDS"),
-        "nfci": _last_or_none("NFCI"),
-        "vix": _last_or_none("VIXCLS"),
+    readings = {
+        "dgs10": _latest("DGS10"),
+        "dgs2": _latest("DGS2"),
+        "t10y2y": _latest("T10Y2Y"),
+        "cpi_yoy": _cpi_yoy(),
+        "unrate": _latest("UNRATE"),
+        "fedfunds": _latest("FEDFUNDS"),
+        "nfci": _latest("NFCI"),
+        "vix": _latest("VIXCLS"),
     }
+    snapshot: dict = {k: value for k, (value, _) in readings.items()}
+    snapshot["as_of"] = {k: as_of for k, (_, as_of) in readings.items()}
+    return snapshot
 
 
 # Sector -> macro series mapping for the Bridgewater agent

@@ -67,9 +67,11 @@ Analyze:
 - Risk assessment: the biggest risks that could permanently impair the
   business model (disruption, regulation, key person dependency)
 
-Use the EDGAR tools to read the latest 10-K, 10-Q, and recent 8-K filings.
-Use yfinance tools for analyst targets and the most recent fundamentals.
-Cite specific filing sections and numbers - never paraphrase from memory.
+The fundamentals tool returns annual statements, the last five quarterly
+income statements, and current valuation multiples. The EDGAR tools return
+filing metadata (form, filing date, 8-K item codes), not filing contents: use
+them to establish what was filed and when. Cite specific numbers and the
+period they belong to - never paraphrase from memory.
 
 {shared_rules_block()}
 

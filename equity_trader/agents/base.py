@@ -1,6 +1,8 @@
 import os
 from openai import AsyncOpenAI
-from agents import Agent, AgentOutputSchema, OpenAIChatCompletionsModel
+from agents import (
+    Agent, AgentOutputSchema, OpenAIChatCompletionsModel, OpenAIResponsesModel,
+)
 
 from equity_trader.config import ModelSpec
 
@@ -31,7 +33,11 @@ def _client_for(spec: ModelSpec) -> AsyncOpenAI:
 def build_agent(*, name: str, instructions: str, tools: list,
                 spec: ModelSpec, output_type):
     client = _client_for(spec)
-    model = OpenAIChatCompletionsModel(model=spec.model, openai_client=client)
+    # OpenAI's current models only take function tools on the Responses API.
+    # The other providers expose the Chat Completions API only.
+    model_cls = (OpenAIResponsesModel if spec.provider == "openai"
+                 else OpenAIChatCompletionsModel)
+    model = model_cls(model=spec.model, openai_client=client)
     return Agent(
         name=name,
         instructions=instructions,
@@ -64,4 +70,6 @@ def shared_rules_block() -> str:
         "8. Call each tool AT MOST ONCE per ticker unless the first result is\n"
         "   empty or errors. Do not re-call tools for verification or different\n"
         "   parameters - one call gives you the data, then synthesize.\n"
+        "9. Leave `error_note` null. It is reserved for system failures. Missing\n"
+        "   or stale data belongs in `risks`.\n"
     )

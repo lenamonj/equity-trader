@@ -13,7 +13,7 @@ console = Console()
 
 
 def render(v) -> None:
-    table = Table(title=f"{v.ticker}  ·  {v.final_recommendation}  ·  Conviction {v.conviction}")
+    table = Table(title=f"{v.ticker}  |  {v.final_recommendation}  |  Conviction {v.conviction}")
     table.add_column("Field")
     table.add_column("Value")
     table.add_row("Current price", f"${v.current_price:,.2f}")
