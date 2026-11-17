@@ -9,8 +9,8 @@ jobs:
   unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.3.3
       - run: uv sync --locked
       - run: uvx ruff check .
       # Mocked LLM and mocked data: no API keys, no network calls to providers.
