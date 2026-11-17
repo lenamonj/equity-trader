@@ -70,6 +70,25 @@ Each desk has its own analysis framework, its own tools and its own voice. All e
 
 <br>
 
+## What each desk sees
+
+Every desk starts from the same context: today's date and price, the company's sector, next earnings date and short interest, a dashboard of about fifty macro readings with their direction, and the FRED catalogue for anything else. Then each works with tools of its own.
+
+All of it is computed in code and handed over with dates and sample sizes, so the model interprets numbers instead of producing them.
+
+| Desk | Its own tools |
+|---|---|
+| J.P. Morgan | SEC statements with ratios, the earnings release and guidance, consensus and revisions, analyst actions, insider trades, recent 8-Ks |
+| Bridgewater Associates | How the stock moves with rates, credit, the dollar and oil, its record in past market stress, cross-asset and sector boards |
+| Goldman Sachs | Trend on three timeframes, support and resistance, volume, relative strength, the last 120 daily bars |
+| Citadel | Factor scorecard ranked against industry peers, estimate revisions, style performance, risk statistics |
+| Jane Street | ETF weights and fund size, sector rotation and breadth, relative strength, index event dates, liquidity |
+| D. E. Shaw | Implied volatility across expiries, skew, positioning, implied against realized, earnings pricing, index volatility |
+| Renaissance Technologies | Full-history seasonality, earnings event study, what followed past shocks and days like today, gaps, volatility regime |
+| Two Sigma | Eleven long and short rules at one, three and six month holds, with significance, stability and a cross-check on the market |
+
+<br>
+
 ## A run, live
 
 Each desk's call appears the moment it reports, so a run that takes a minute or two is never a blank spinner. The terminal report shows the same progress.
@@ -97,12 +116,13 @@ Every desk's reasoning stays on the page. Nothing is averaged away.
   <img src="docs/assets/architecture-light.svg" width="100%" alt="A ticker fans out to eight specialist agents, three at a time, sharing one data cache. The orchestrator combines a deterministic score, an LLM memo and live catalysts into one verdict, saved to SQLite and JSON.">
 </picture>
 
-- **Independent specialists.** Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its output type. No desk sees another's work.
+- **Independent specialists.** Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its output type. No desk sees another's work. Desks share context, never conclusions.
+- **The model interprets; code computes.** Ratios, indicators, event studies and backtests are calculated in code. No desk does arithmetic or recalls a fact from memory.
 - **Rate-limit aware fan-out.** A semaphore runs three agents at a time, with exponential backoff on `RateLimitError`.
-- **One fetch per run.** Data tools are memoized in a per-run `ContextVar` cache, so eight agents share fetches instead of hammering the APIs.
+- **One fetch per run.** Data tools are memoized in a per-run `ContextVar` cache, so eight agents share fetches instead of hammering the APIs. The macro dashboard is fetched once a day.
 - **Temporal grounding.** The orchestrator is handed today's date, the current price, and a real catalyst calendar. Any catalyst dated outside the horizon is dropped in code.
 - **Events, not just numbers.** The fundamental desk reads the company's five most recent 8-Ks in full, so a CEO departure, an acquisition or a new guarantee is weighed in the call before it shows up in any statement.
-- **Dated inputs.** Every reading a desk sees carries its observation date, and the backtest reports an unconditional baseline next to each rule, so a stale number or a fake edge is visible to the chair.
+- **Dated inputs, honest statistics.** Every reading carries its observation date. Every statistical claim carries its sample size and the baseline it has to beat, so a stale number or a fake edge is visible to the chair.
 - **Graceful degradation.** A failed desk is excluded and its weight is redistributed. Only the runner can mark a desk as failed. If the orchestrator call fails, a mechanical aggregation takes its place.
 
 <br>
@@ -175,9 +195,9 @@ All market data is free. No paid feeds.
 
 | Source | Used for |
 |---|---|
-| SEC EDGAR | Financial statements as filed, with filing dates. The text of recent 8-Ks |
-| yfinance | Prices, valuation multiples, analyst targets, options, earnings and dividend dates |
-| FRED | Rates, inflation, unemployment, financial conditions, VIX |
+| SEC EDGAR | Financial statements as filed, earnings releases and guidance, the text of recent 8-Ks |
+| yfinance | Prices, valuation multiples, analyst estimates and rating actions, insider transactions, options chains, ETF holdings, earnings and dividend dates |
+| FRED | About fifty macro series on rates, inflation, growth, labor, credit and liquidity, sector series, the data release calendar |
 
 Companies that file no US-GAAP statements with the SEC, such as IFRS filers, fall back to yfinance statements, and the desk is told which source it received.
 
@@ -191,7 +211,7 @@ uv run pytest -m slow         # integration: live yfinance and SEC EDGAR
 uv run pytest                 # everything
 ```
 
-The mocked tier covers all eight agents, the orchestrator, the runner, the scoring math, persistence, the cache and the schemas.
+The mocked tier covers every data tool and study on constructed inputs, all eight agents and their tool wiring, the orchestrator, the runner, the scoring math, persistence, the cache and the schemas.
 
 <br>
 
@@ -217,12 +237,18 @@ equity-trader/
 │   ├── ui.css                  # web UI stylesheet
 │   ├── data/
 │   │   ├── cache.py            # per-run ContextVar cache
-│   │   ├── yfinance_tools.py
-│   │   ├── edgar_tools.py
-│   │   ├── fred_tools.py
+│   │   ├── edgar_tools.py      # SEC statements, earnings releases, 8-Ks
+│   │   ├── fred_tools.py       # macro dashboard, sector series, search
+│   │   ├── yfinance_tools.py   # raw market data access
+│   │   ├── company_tools.py    # snapshot, estimates, insiders, peers, factors
+│   │   ├── technical_tools.py  # trend, levels, volume, relative strength
+│   │   ├── pattern_tools.py    # seasonality, event and forward-return studies
+│   │   ├── options_tools.py    # volatility surface, skew, positioning
+│   │   ├── market_tools.py     # cross-asset, sectors, ETFs, stress history
 │   │   └── calendar_tools.py   # real upcoming catalysts
 │   └── agents/
 │       ├── base.py             # agent factory + shared rules
+│       ├── shared_tools.py     # context tools every desk has
 │       ├── jpm_fundamental.py
 │       ├── bridgewater_macro.py
 │       ├── gs_technical.py

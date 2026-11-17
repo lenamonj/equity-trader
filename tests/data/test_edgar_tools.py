@@ -160,7 +160,7 @@ def test_financial_statements_raise_without_us_gaap():
 def test_financial_statements_live():
     reset_run_cache()
     out = et.get_financial_statements("AAPL")
-    assert len(out["annual"]) == 4 and len(out["quarterly"]) == 5
+    assert len(out["annual"]) == 5 and len(out["quarterly"]) == 6
     assert out["annual"][0]["revenue"] > 0
 
 
