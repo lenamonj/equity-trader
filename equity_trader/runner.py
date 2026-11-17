@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 # Cap parallel LLM calls to stay under OpenAI per-org rate limits: eight
 # agents firing at once hit 429s on Tier-1 accounts. Three at a time keeps
-# headroom, and a full ticker run takes about a minute and a half.
+# headroom, and a full ticker run takes a little over two minutes.
 _AGENT_CONCURRENCY = 3
 
 # Exponential backoff schedule (seconds) for OpenAI 429s. Total wait ~56s

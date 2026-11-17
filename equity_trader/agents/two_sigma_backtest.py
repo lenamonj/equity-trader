@@ -131,7 +131,9 @@ def backtest_rules(ticker: str) -> dict:
         "cost_assumption": COST,
         "tests_run": len(rules) * len(HOLDS),
         "how_to_read": ("Returns are in the rule's own direction. A short rule loses what "
-                        "the stock gains, so its worst_trade can be below -100%."),
+                        "the stock gains, so its worst_trade can be below -100%. Rules "
+                        "read daily closes, so a 52-week high or low here is a closing "
+                        "one and can differ from the intraday range in the snapshot."),
         "buy_and_hold_annual_return": num((close.iloc[-1] / close.iloc[0]) ** (1 / years) - 1.0),
         "rules": rules,
         "same_rules_63d_elsewhere": elsewhere,

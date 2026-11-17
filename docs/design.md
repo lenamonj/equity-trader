@@ -17,7 +17,8 @@ reset the per-run cache, fetch the quote        runner.py
   |
 the gatherer fetches every desk's data          gatherer.py
   |
-eight specialists, three at a time              runner.py, agents/
+eight specialists, one model call each,         runner.py, agents/
+three at a time
   |
 eight AgentVerdict objects
   |
@@ -36,11 +37,13 @@ web UI or terminal report                       app.py, run.py
 
 ### The gatherer
 
-`gather(ticker)` in `gatherer.py` calls every desk tool, all 33, once each and one at a time, before any desk starts. The results land in the per-run cache, so a desk's tool call is answered from memory and no desk calls a data provider. Every tool takes the ticker or nothing; a test rejects a tool with any other argument, because a desk could then reach a provider in the middle of a run with a request of its own choosing.
+Each desk module declares `DATA`, the list of functions whose results it reads. A function is one section: `company_snapshot`, `options_surface`, `rule_backtest`. `ALL_DATA` in `agents/__init__.py` is every section across the desks, each once, 33 in all.
 
-It is code, not a model, because nothing about it needs judgment: what to fetch is the desks' own tool lists. Tools are declared with `desk_tool` (`agents/base.py`), which registers the plain function next to the SDK tool so the gatherer can call it.
+`gather(ticker, ALL_DATA)` in `gatherer.py` calls each of them once, one at a time, before any desk starts, and returns each section's data or the error that stopped it. `brief(ticker, DATA, gathered)` then builds a desk's request: the task, and under a heading for each of its sections, the function's docstring and its data as compact JSON, or `UNAVAILABLE` and the error. Every section takes the ticker or nothing, and a test rejects any other argument, since such a section could not be gathered ahead of the desks.
 
-It exists because of how the providers behave under load. Eight desks asking at once sent hundreds of requests to FRED in a second, and Yahoo refused a different request on every run. Fetched in sequence, a run makes about 116 Yahoo, 60 FRED and 12 SEC requests over about 20 seconds, and none is refused. FRED allows 120 requests a minute, so one run fits with room, and the web app keeps the macro dashboard for the day. A tool that fails in the gatherer is logged and left for the desk, which tries again and reports what it gets.
+It is code, not a model, because nothing about it needs judgment: what to fetch is what the desks declare. A desk has no tools. It makes one model call and cannot reach a data provider.
+
+It exists because of how the providers behave under load. Eight desks asking at once sent hundreds of requests to FRED in a second, and Yahoo refused a different request on every run. Fetched in sequence, a run makes about 116 Yahoo, 60 FRED and 12 SEC requests over about 20 seconds, and none is refused. FRED allows 120 requests a minute, so one run fits with room, and the web app keeps the macro dashboard for the day. A section that fails is logged and reaches the desk marked unavailable.
 
 ## The committee
 
@@ -48,20 +51,20 @@ Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its out
 
 Two principles govern what a desk is given:
 
-- **The model interprets; code computes.** Every tool returns a compact summary with its dates, sample sizes and, where a claim of edge is involved, a baseline to beat. No desk is asked to do arithmetic, count trades or recall a fact from memory.
-- **Desks share context, never conclusions.** Every desk can read the same background. Each desk's analytical tools are its own.
+- **The model interprets; code computes.** Every section is a compact summary with its dates, sample sizes and, where a claim of edge is involved, a baseline to beat. No desk is asked to do arithmetic, count trades or recall a fact from memory.
+- **Desks share context, never conclusions.** Every desk is given the same background. Each desk's analytical data is its own.
 
-### Shared context (`agents/shared_tools.py`)
+### Shared context (`agents/shared_data.py`)
 
-| Tool | What it gives |
+| Section | What it gives |
 |---|---|
 | Company snapshot | Today's date, price, market cap, sector, industry, 52-week range, beta, dollar volume, next earnings date, short interest and its change, ownership |
 | Macro dashboard | About fifty FRED series in eight groups: rates, inflation, growth, labor, credit, liquidity, markets, recession. Each with its value now, three months ago and a year ago, and its ten-year percentile. Also the scheduled CPI, jobs, GDP and PCE releases |
 | Sector macro | FRED series that drive the ticker's sector |
 
-### Desk tools
+### Desk data
 
-| Desk | Module | Weight | Its own tools |
+| Desk | Module | Weight | Its own data |
 |---|---|---:|---|
 | J.P. Morgan, Fundamental | `jpm_fundamental` | 25 | SEC statements with ratios, earnings release and guidance, consensus and revisions, analyst actions, insider trades and holders, text of recent 8-Ks |
 | Bridgewater Associates, All-Weather Macro | `bridgewater_macro` | 18 | Macro sensitivity of the stock, its record in past market drawdowns, cross-asset board, sector rotation |
@@ -72,7 +75,7 @@ Two principles govern what a desk is given:
 | Renaissance Technologies, Pattern Recognition | `renaissance_pattern` | 8 | Seasonality, earnings event study, forward-return study, volatility and gaps |
 | Two Sigma, Backtest Sanity | `two_sigma_backtest` | 5 | Rule backtest |
 
-Every prompt is a persona and framework, a description of that desk's tools, and the shared rules in `agents/base.py`: a strict 3 to 6 month horizon, the snapshot called first, cited data points, thesis and risks on every call, one call per tool, and `error_note` left null. A test checks that every tool a prompt names is one the desk has.
+Every prompt is a persona and framework, a description of that desk's sections, and the shared rules in `agents/base.py`: a strict 3 to 6 month horizon, the date and price taken from the snapshot, cited data points, thesis and risks on every call, nothing assumed beyond the data handed over, and `error_note` left null. A test checks that every section a prompt names is one the desk is given.
 
 ## Models
 
@@ -81,7 +84,7 @@ Every prompt is a persona and framework, a description of that desk's tools, and
 | Eight specialists | `gpt-6-luna` | OpenAI Responses |
 | Orchestrator | `gpt-6.1-sol` | OpenAI Responses |
 
-Routing is one `ModelSpec(provider, model)` per agent in `config.py`. `build_agent` in `agents/base.py` uses the Responses API for OpenAI, because OpenAI's current models accept function tools only there, and the Chat Completions API for Groq, DeepSeek and Gemini through their OpenAI-compatible endpoints. Those three providers are supported by the factory and need their own key in `.env`; none is used by the default configuration.
+Routing is one `ModelSpec(provider, model)` per agent in `config.py`. `build_agent` in `agents/base.py` uses the Responses API for OpenAI and the Chat Completions API for Groq, DeepSeek and Gemini through their OpenAI-compatible endpoints. Those three providers are supported by the factory and need their own key in `.env`; none is used by the default configuration.
 
 ## The verdict contract
 
@@ -120,7 +123,7 @@ Sourced catalysts are the company's earnings and dividend dates and the schedule
 
 ## Data layer
 
-All market data is free. Tools are memoized per run by `cached_for_run` (`data/cache.py`), a `ContextVar` cache reset at the start of each run. The gatherer fills it, the desks read from it, and concurrent runs stay isolated. When two callers ask for the same thing at the same moment, the first fetches and the second waits. The macro dashboard is the exception: it is about fifty requests and does not change within a day, so a complete one is kept for the day.
+All market data is free. Data functions are memoized per run by `cached_for_run` (`data/cache.py`), a `ContextVar` cache reset at the start of each run, so sections that share a source, such as the company profile, fetch it once, and concurrent runs stay isolated. When two callers ask for the same thing at the same moment, the first fetches and the second waits. The macro dashboard is the exception: it is about fifty requests and does not change within a day, so a complete one is kept for the day.
 
 | Module | Source | Provides |
 |---|---|---|
@@ -177,9 +180,8 @@ The pattern and backtest desks work from the stock's full price history.
 ## Failure handling
 
 - **Bad ticker:** `get_quote` raises, the run stops, the UI shows an error card and the CLI exits 1. No LLM cost is incurred.
-- **Failed fetch in the gatherer:** logged with the tool's name and left uncached, so the desk that needs it tries once more.
+- **Failed fetch in the gatherer:** logged with the section's name. Each desk that reads the section is told it is unavailable and why, and says so in its risks.
 - **Refused by Yahoo:** yfinance hands a refused request back as an empty result. `yfinance_tools` checks every response, retries a 401, 403 or 429 once after two seconds, and raises `DataFetchError` if it is refused again.
-- **Failed tool:** the error is returned to the model as the tool's result, and the desk carries on with what it has.
 - **Rate limits:** a semaphore runs three agents at a time. An OpenAI 429 is retried after 8, 16 and 32 seconds.
 - **Failed desk:** any other exception, or a fourth 429, becomes a HOLD placeholder with `error_note` set. The desk is shown as failed and excluded from the score.
 - **Failed orchestrator:** a mechanical verdict takes its place: BUY above +1, SELL below -1, HOLD otherwise, with a memo that says the synthesis was unavailable.
@@ -196,7 +198,7 @@ Each run writes one row to the `runs` table in `equity_trader.db` (ticker, times
 
 ## Testing
 
-`uv run pytest -m "not slow"` runs the unit tier with a mocked LLM and mocked data: every data tool and study on constructed inputs, the agents and their tool wiring, the orchestrator, runner, scoring, persistence, cache, schemas and the UI rendering functions. `uv run pytest -m slow` hits live yfinance and SEC EDGAR. CI runs ruff and the unit tier on every push to `main` and on every pull request.
+`uv run pytest -m "not slow"` runs the unit tier with a mocked LLM and mocked data: every data function and study on constructed inputs, the agents and the data each is handed, the gatherer, the orchestrator, runner, scoring, persistence, cache, schemas and the UI rendering functions. `uv run pytest -m slow` hits live yfinance and SEC EDGAR. CI runs ruff and the unit tier on every push to `main` and on every pull request.
 
 ## Not in scope
 

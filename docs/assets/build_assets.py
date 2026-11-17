@@ -219,9 +219,9 @@ def architecture(f: dict, t: dict) -> str:
         line(spine_in, row_y + row_h / 2, spine_in, last_cy, t["gold"]),
         line(spine_out, row_y + row_h / 2, spine_out, last_cy, t["gold"]),
         line(spine_out, cy, chair_x, cy, t["gold"]),
-        f["mono"].draw("8 SPECIALISTS, 3 AT A TIME, BACKOFF ON 429", desks_mid, 104, 9,
+        f["mono"].draw("8 SPECIALISTS, ONE MODEL CALL EACH, 3 AT A TIME", desks_mid, 104, 9,
                        t["ink4"], "middle", tracking=0.14),
-        f["mono"].draw("EVERY DESK READS THE GATHERED DATA FROM ONE CACHE", desks_mid,
+        f["mono"].draw("EACH DESK IS HANDED ITS DATA AND HAS NO TOOLS", desks_mid,
                        last_cy + 46, 9, t["ink4"], "middle", tracking=0.14),
     ]
     for i, (_, firm, discipline) in enumerate(DESKS):
@@ -264,7 +264,8 @@ def architecture(f: dict, t: dict) -> str:
                        t["ink4"], "middle", tracking=0.14),
     ]
     return svg(540, "Architecture: the gatherer fetches every desk's data before any desk "
-                    "starts; eight specialist agents then read it, three at a time; the "
+                    "starts; eight specialist agents are each handed their share and answer in "
+                    "one model call, three at a time; the "
                     "orchestrator combines a deterministic "
                     "weighted score with an LLM memo and live catalysts into one verdict, "
                     "persisted to SQLite and JSON.", b, t)
