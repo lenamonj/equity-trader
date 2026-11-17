@@ -1,32 +1,34 @@
 from agents import Runner, function_tool
 
 from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.shared_tools import SHARED_TOOLS, tool_get_estimates
 from equity_trader.config import AGENT_MODELS
-from equity_trader.data import fred_tools as fred
-from equity_trader.data import yfinance_tools as yft
+from equity_trader.data import company_tools, market_tools
 from equity_trader.schemas import AgentVerdict
 
 AGENT_NAME = "citadel_quant"
 
 
 @function_tool
-def tool_get_peer_set(ticker: str) -> list[str]:
-    return yft.get_peer_set(ticker)
+def tool_get_factor_scorecard(ticker: str) -> dict:
+    """Value, quality, growth, momentum and low-volatility metrics for the
+    ticker and its five largest industry peers. Each metric has the ticker's
+    value, the peer median and its rank, where rank 1 is the most attractive."""
+    return company_tools.get_factor_scorecard(ticker)
 
 
 @function_tool
-def tool_compute_factor_loads(ticker: str, peers: list[str]) -> dict:
-    return yft.compute_factor_loads(ticker, peers)
+def tool_get_risk_stats(ticker: str) -> dict:
+    """One-year return, volatility, drawdown, skew, beta and correlation to the
+    S&P 500, and how much of the stock's risk is specific to it."""
+    return company_tools.get_risk_stats(ticker)
 
 
 @function_tool
-def tool_get_macro_snapshot() -> dict:
-    return fred.get_macro_snapshot()
-
-
-@function_tool
-def tool_get_quote(ticker: str) -> dict:
-    return yft.get_quote(ticker)
+def tool_get_style_board() -> dict:
+    """Momentum, quality, value, low-volatility and small-cap ETFs against the
+    S&P 500 over 1, 3 and 6 months: which styles the market is paying for."""
+    return market_tools.style_board()
 
 
 INSTRUCTIONS = f"""You are a senior quantitative trader at Citadel who
@@ -41,16 +43,19 @@ grounded in measurable factor exposures and peer-relative value.
 Build the case:
 - Strategy thesis: which market inefficiency or behavioral pattern would
   capture alpha here over the next 3-6 months (momentum, mean reversion,
-  value, quality, low-vol, rate beta)
-- Factor exposures: 12-1 momentum, value (cheap or expensive vs peers),
-  quality (margin stability, ROIC), low-vol (realized vol regime), rate
-  sensitivity (long-duration vs short-duration cash flow profile)
-- Peer relative value: how does the ticker rank vs the peer set on each
-  factor - use the tool_get_peer_set output as the comparison universe
+  value, quality, low-vol, estimate revisions, rate beta)
+- Factor exposures: momentum, value, quality, growth and low volatility,
+  each as a rank against peers
+- Peer relative value: where the ticker ranks on each factor, and whether
+  the ranks agree or conflict
+- Estimate revisions and surprise: are estimates rising or falling, and
+  has the company been beating them
+- Factor regime: which styles the market is paying for now, and whether
+  this stock's profile matches them
 - Entry signal: what set of conditions are TRUE today that justify
   initiating a position (cite specific factor scores, not narrative)
 - Position sizing: how large would a systematic book size this given the
-  realized volatility and idiosyncratic risk
+  realized volatility and stock-specific risk
 - Time frame fit: does the 3-6 month horizon match the half-life of the
   signal, or is the edge faster/slower than that window
 - Risk-reward ratio: what is the upside vs the downside, and is the
@@ -59,20 +64,18 @@ Build the case:
   whatever the S&P 500 is already doing
 - Market regime filter: bull / bear / sideways / risk-off - does the
   strategy survive across regimes, and which regime are we in now
-- Historical edge: why has this factor combination worked historically and
-  what would make it stop working
 
-Call the tools in this EXACT sequence, each EXACTLY ONCE:
-  1. tool_get_peer_set(ticker) - capture the peer list
-  2. tool_get_quote(ticker)
-  3. tool_get_macro_snapshot()
-  4. tool_compute_factor_loads(ticker, peers=<the list from step 1>)
-After step 4, IMMEDIATELY produce the AgentVerdict. Do NOT call any tool a
-second time. Do NOT try alternative peer lists. If a tool returns an empty
-or partial result, note it in risks and move on - do not re-call.
+YOUR TOOLS:
+- tool_get_factor_scorecard: the ticker and its five largest industry peers
+  on every factor, with ranks. Rank 1 of N is the most attractive. A metric
+  with `of` below 4 has too few peers to rank; say so.
+- tool_get_estimates: 90-day estimate change, revision counts and surprises.
+- tool_get_style_board: which styles are being paid.
+- tool_get_risk_stats: volatility, drawdown, beta and stock-specific risk.
+- tool_get_macro_dashboard: the regime filter.
 
-Cite concrete factor scores; never say "strong momentum" without the 12-1
-number.
+Cite concrete factor scores; never say "strong momentum" without the
+number and its rank.
 
 {shared_rules_block()}
 
@@ -84,8 +87,8 @@ not a free-form strategy doc.
 agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
-    tools=[tool_get_peer_set, tool_compute_factor_loads,
-           tool_get_macro_snapshot, tool_get_quote],
+    tools=[*SHARED_TOOLS, tool_get_factor_scorecard, tool_get_estimates,
+           tool_get_style_board, tool_get_risk_stats],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )

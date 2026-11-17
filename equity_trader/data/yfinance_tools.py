@@ -1,15 +1,12 @@
-import logging
 import time
 from datetime import date
 
-import numpy as np
 import pandas as pd
 import yfinance as yf
 
 from equity_trader.data.cache import cached_for_run
+from equity_trader.data.util import iso, num
 from equity_trader.exceptions import DataFetchError, TickerNotFoundError
-
-log = logging.getLogger(__name__)
 
 _LAST_CALL = {"t": 0.0}
 _MIN_INTERVAL = 0.1  # seconds
@@ -80,16 +77,45 @@ def get_quote(ticker: str) -> dict:
         raise TickerNotFoundError(ticker) from e
 
 
+# yfinance statement row -> the name used in tool output.
+_STATEMENT_LINES = {
+    "Total Revenue": "revenue", "Gross Profit": "gross_profit",
+    "Operating Income": "operating_income", "Net Income": "net_income",
+    "Diluted EPS": "eps_diluted", "Operating Cash Flow": "operating_cash_flow",
+    "Capital Expenditure": "capex", "Free Cash Flow": "free_cash_flow",
+    "Cash And Cash Equivalents": "cash", "Total Debt": "total_debt",
+    "Stockholders Equity": "stockholders_equity",
+}
+
+
+def _statement_periods(frames: list, limit: int) -> list[dict]:
+    """Selected lines from yfinance statement frames, one dict per period, newest first."""
+    frames = [f for f in frames if f is not None and not f.empty]
+    if not frames:
+        return []
+    merged = pd.concat(frames)
+    merged = merged[~merged.index.duplicated()]
+    out = []
+    for end in sorted(merged.columns, reverse=True)[:limit]:
+        row: dict = {"period_end": iso(end)}
+        for label, name in _STATEMENT_LINES.items():
+            if label in merged.index:
+                value = num(merged.loc[label, end], 2)
+                # yfinance reports capital spending as a negative number.
+                row[name] = abs(value) if name == "capex" and value is not None else value
+        out.append(row)
+    return out
+
+
 @cached_for_run
 def get_fundamentals(ticker: str) -> dict:
+    """Statements from yfinance, for companies with no US-GAAP filings on EDGAR."""
     throttle()
     t = yf.Ticker(ticker)
     return {
-        "income_stmt": t.income_stmt.to_dict() if t.income_stmt is not None else {},
-        "balance_sheet": t.balance_sheet.to_dict() if t.balance_sheet is not None else {},
-        "cash_flow": t.cashflow.to_dict() if t.cashflow is not None else {},
-        "quarterly_income_stmt": (t.quarterly_income_stmt.iloc[:, :5].to_dict()
-                                  if t.quarterly_income_stmt is not None else {}),
+        "annual": _statement_periods([t.income_stmt, t.cashflow, t.balance_sheet], 4),
+        "quarterly": _statement_periods(
+            [t.quarterly_income_stmt, t.quarterly_cashflow, t.quarterly_balance_sheet], 5),
         "valuation": get_valuation(ticker),
     }
 
@@ -118,160 +144,6 @@ def get_analyst_targets(ticker: str) -> dict:
         "num_analysts": info.get("numberOfAnalystOpinions"),
         "recommendation": info.get("recommendationKey"),
         "as_of": date.today().isoformat(),
-    }
-
-
-def _rsi(close: pd.Series, period: int = 14) -> float:
-    delta = close.diff()
-    gain = delta.clip(lower=0).rolling(period).mean()
-    loss = (-delta.clip(upper=0)).rolling(period).mean()
-    rs = gain / loss.replace(0, np.nan)
-    rsi = 100 - (100 / (1 + rs))
-    return float(rsi.iloc[-1])
-
-
-def _atr(df: pd.DataFrame, period: int = 14) -> float:
-    high_low = df["High"] - df["Low"]
-    high_close = (df["High"] - df["Close"].shift()).abs()
-    low_close = (df["Low"] - df["Close"].shift()).abs()
-    tr = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
-    return float(tr.rolling(period).mean().iloc[-1])
-
-
-@cached_for_run
-def compute_technicals(ticker: str) -> dict:
-    df = get_price_history(ticker, period="2y", interval="1d")
-    close = df["Close"]
-    ema12 = close.ewm(span=12, adjust=False).mean()
-    ema26 = close.ewm(span=26, adjust=False).mean()
-    macd = ema12 - ema26
-    macd_signal = macd.ewm(span=9, adjust=False).mean()
-    return {
-        "as_of": as_of(df),
-        "last_close": float(close.iloc[-1]),
-        "sma_50": float(close.rolling(50).mean().iloc[-1]),
-        "sma_200": float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else None,
-        "rsi_14": _rsi(close),
-        "macd": float(macd.iloc[-1]),
-        "macd_signal": float(macd_signal.iloc[-1]),
-        "atr_14": _atr(df),
-        "vol_20": float(close.pct_change().rolling(20).std().iloc[-1] * (252 ** 0.5)),
-    }
-
-
-# Simple sector-peer heuristic. Real peer discovery would use a richer source;
-# yfinance's `info` doesn't expose peers directly, so we use a small hardcoded
-# map keyed on sector/industry. Override at call-site if richer peers needed.
-_SECTOR_PEERS = {
-    ("Technology", "Semiconductors"): ["AMD", "INTC", "AVGO", "TSM", "QCOM"],
-    ("Technology", "Software - Infrastructure"): ["MSFT", "ORCL", "CRM", "ADBE"],
-    ("Technology", "Software - Application"): ["CRM", "NOW", "SNOW", "DDOG"],
-    ("Communication Services", "Internet Content & Information"):
-        ["GOOGL", "META", "PINS", "SNAP"],
-    ("Consumer Cyclical", "Internet Retail"): ["AMZN", "MELI", "EBAY"],
-    ("Financial Services", "Banks - Diversified"): ["JPM", "BAC", "C", "WFC"],
-}
-
-
-@cached_for_run
-def get_peer_set(ticker: str) -> list[str]:
-    info = get_info(ticker)
-    key = (info.get("sector"), info.get("industry"))
-    peers = _SECTOR_PEERS.get(key, [])
-    return [p for p in peers if p.upper() != ticker.upper()]
-
-
-_MIN_OPTION_DAYS = 90  # the horizon starts at three months
-
-
-def _days_to(expiry: str, today: date) -> int:
-    return (date.fromisoformat(expiry) - today).days
-
-
-def _horizon_expiry(expiries: list[str], today: date) -> str:
-    """First expiry inside the 3-6 month horizon, else the furthest listed."""
-    for e in expiries:
-        if _days_to(e, today) >= _MIN_OPTION_DAYS:
-            return e
-    return expiries[-1]
-
-
-@cached_for_run
-def get_options_chain(ticker: str, expiry: str | None = None) -> dict:
-    throttle()
-    t = yf.Ticker(ticker)
-    expiries = list(t.options or [])
-    if not expiries:
-        return {"expiries": [], "calls": [], "puts": [], "selected_expiry": None,
-                "days_to_expiry": None}
-    today = date.today()
-    chosen = expiry or _horizon_expiry(expiries, today)
-    chain = t.option_chain(chosen)
-    return {
-        "expiries": expiries,
-        "selected_expiry": chosen,
-        "days_to_expiry": _days_to(chosen, today),
-        "calls": chain.calls[["strike", "lastPrice", "impliedVolatility",
-                              "openInterest", "volume"]].to_dict(orient="records"),
-        "puts": chain.puts[["strike", "lastPrice", "impliedVolatility",
-                            "openInterest", "volume"]].to_dict(orient="records"),
-    }
-
-
-@cached_for_run
-def compute_iv_stats(ticker: str) -> dict:
-    chain = get_options_chain(ticker)
-    calls = chain["calls"]
-    puts = chain["puts"]
-    if not calls or not puts:
-        return {"atm_iv": None, "put_call_iv_skew": None,
-                "selected_expiry": chain["selected_expiry"],
-                "days_to_expiry": chain["days_to_expiry"]}
-    quote = get_quote(ticker)
-    spot = quote["last_price"]
-    atm_call = min(calls, key=lambda c: abs(c["strike"] - spot))
-    atm_put = min(puts, key=lambda p: abs(p["strike"] - spot))
-    return {
-        "atm_iv": float(atm_call["impliedVolatility"]),
-        "put_call_iv_skew": float(atm_put["impliedVolatility"]
-                                   - atm_call["impliedVolatility"]),
-        "selected_expiry": chain["selected_expiry"],
-        "days_to_expiry": chain["days_to_expiry"],
-    }
-
-
-@cached_for_run
-def compute_factor_loads(ticker: str, peers: list[str]) -> dict:
-    df = get_price_history(ticker, period="2y", interval="1d")
-    close = df["Close"]
-    # 12-1 momentum: return from t-252 to t-21
-    if len(close) >= 252:
-        mom_12_1 = float(close.iloc[-21] / close.iloc[-252] - 1.0)
-    else:
-        mom_12_1 = float(close.iloc[-1] / close.iloc[0] - 1.0)
-    vol_60 = float(close.pct_change().tail(60).std() * (252 ** 0.5))
-
-    # Relative strength vs peers, both measured over the same 90 sessions
-    window = 90
-    base_ret = _window_return(df, window)
-    peer_rets = []
-    for p in peers:
-        try:
-            peer_ret = _window_return(get_price_history(p, period="1y", interval="1d"), window)
-        except Exception as exc:
-            log.warning("Peer %s unavailable for %s: %s", p, ticker, exc)
-            continue
-        if peer_ret is not None:
-            peer_rets.append(peer_ret)
-    rel = (base_ret - sum(peer_rets) / len(peer_rets)
-           if peer_rets and base_ret is not None else None)
-
-    return {
-        "as_of": as_of(df),
-        "momentum_12_1": mom_12_1,
-        "volatility_60d": vol_60,
-        "rel_strength_vs_peers": rel,
-        "peer_count_used": len(peer_rets),
     }
 
 
@@ -365,28 +237,4 @@ def get_etf_landscape(ticker: str) -> dict:
         "beta_to_spy":          _beta(ticker_df, spy_df),
         "beta_to_sector":       _beta(ticker_df, sector_df),
         "recent_volume_vs_60d_avg": vol_ratio,
-    }
-
-
-@cached_for_run
-def compute_statistical_patterns(ticker: str) -> dict:
-    df = get_price_history(ticker, period="2y", interval="1d")
-    rets = df["Close"].pct_change().dropna()
-    ac1 = float(rets.autocorr(lag=1) or 0.0)
-    ac5 = float(rets.autocorr(lag=5) or 0.0)
-    by_month = rets.groupby(rets.index.month).mean().to_dict()
-    realized_vol = float(rets.tail(30).std() * (252 ** 0.5))
-    if ac1 > 0.05:
-        regime = "trending"
-    elif ac1 < -0.05:
-        regime = "mean_reverting"
-    else:
-        regime = "mixed"
-    return {
-        "as_of": as_of(df),
-        "autocorr_1d": ac1,
-        "autocorr_5d": ac5,
-        "monthly_seasonality": {int(k): float(v) for k, v in by_month.items()},
-        "realized_vol_30d": realized_vol,
-        "regime": regime,
     }

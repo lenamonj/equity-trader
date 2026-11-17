@@ -1,7 +1,14 @@
 from agents import Runner, function_tool
 
 from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.shared_tools import (
+    SHARED_TOOLS,
+    tool_get_index_event_calendar,
+    tool_get_relative_strength,
+    tool_get_sector_rotation,
+)
 from equity_trader.config import AGENT_MODELS
+from equity_trader.data import market_tools
 from equity_trader.data import yfinance_tools as yft
 from equity_trader.schemas import AgentVerdict
 
@@ -10,19 +17,17 @@ AGENT_NAME = "jane_street_etf"
 
 @function_tool
 def tool_get_etf_landscape(ticker: str) -> dict:
+    """The ticker, its sector ETF and SPY over 1, 3 and 6 months, the ticker's
+    beta to each, and recent volume against its 60-day average."""
     return yft.get_etf_landscape(ticker)
 
 
 @function_tool
-def tool_get_quote(ticker: str) -> dict:
-    return yft.get_quote(ticker)
-
-
-@function_tool
-def tool_get_price_history(ticker: str, period: str = "1y") -> list[dict]:
-    df = yft.get_price_history(ticker, period=period)
-    out = df[["Close", "Volume"]].tail(60).reset_index()
-    return out.assign(Date=lambda d: d["Date"].astype(str)).to_dict(orient="records")
+def tool_get_etf_exposure(ticker: str) -> dict:
+    """The stock's weight and rank in SPY, QQQ, its sector ETF and the largest
+    ETFs in its sector, each fund's assets and volume against average, plus
+    the stock's own liquidity: dollar volume, float turnover and price impact."""
+    return market_tools.etf_exposure(ticker)
 
 
 INSTRUCTIONS = f"""You are a senior ETF arbitrage and basket-trading
@@ -41,45 +46,50 @@ technicals - those are other desks' jobs).
 
 Observe:
 - ETF inclusion exposure: which major sector and broad-market ETFs hold
-  this ticker, and how passive-flow sensitive is the name (high index
-  weight means small ETF inflows produce real demand)
-- Sector ETF behavior: is the sector ETF (XLK / XLF / XLE / XLY / etc.)
-  leading or lagging the broad market (SPY) over 1mo / 3mo / 6mo
-  windows, and what does that rotation pattern imply for the underlying
-- Relative strength vs sector: ticker_return_3m minus sector_etf_return_3m
-  - is the name outperforming its sector (alpha) or being dragged by it
-- Relative strength vs market: ticker_return_3m minus spy_return_3m -
-  is recent strength beta-driven or idiosyncratic
+  this ticker and at what weight. A high weight means flows into or out
+  of the fund move the stock, and the stock moves the fund
+- Sector ETF behavior: is the sector ETF leading or lagging the broad
+  market (SPY) over 1mo / 3mo / 6mo windows, where does the sector rank
+  among all eleven, and what does that rotation imply for the underlying
+- Relative strength vs sector: is the name outperforming its sector
+  (alpha) or being dragged by it, and how stretched is the ratio
+- Relative strength vs market: is recent strength or weakness
+  beta-driven or idiosyncratic
 - Beta decomposition: ticker's beta to SPY vs beta to sector ETF -
   high beta-to-sector + low beta-to-SPY says sector rotation drives the
   name; the opposite says it trades like a market proxy
 - Volume regime (recent_volume_vs_60d_avg): >1.3 means
   institutional/passive accumulation or distribution; <0.7 means
   retail-only chop. The DIRECTION of recent price plus the volume
-  regime tells you whether ETF flows are pushing the name
-- Creation/redemption signal: when the sector ETF is trending up on
-  rising volume, creation activity is dragging every member higher;
-  when it's down on rising volume, redemptions force selling. Use
-  sector_etf_return_3m and spy_return_3m together to read this
+  regime tells you whether basket flows are pushing the name
+- Flow read: you have no creation or redemption data. Infer pressure
+  only from fund volume against its average together with the direction
+  of the fund's price, and say that it is an inference
 - Pair-trade lens: if you were running long this ticker vs short the
   sector ETF (or vice versa), would the trade have made money over
   the last 3-6 months, and is that pair still attractive
-- Index inclusion risk or upside: upcoming MSCI, S&P, or Russell
-  rebalance dates that could mechanically move passive demand (you
-  know these from your seat at Jane Street; flag if a rebalance is
-  inside the 3-6 month window)
+- Index events: quarterly S&P rebalance and options expiration dates
+  inside the horizon, from the calendar tool. You have no Russell or
+  MSCI review dates; do not cite any
+- Breadth: equal-weight against cap-weight S&P 500, which says whether
+  the market is led by a few large names or broadly
 - Liquidity context: thin underlying liquidity plus heavy ETF holding
   equals forced-selling risk in a drawdown; deep liquidity equals
   relative safety in stress
 
-Call tool_get_etf_landscape(ticker) EXACTLY ONCE first - this returns
-sector ETF, 1m/3m/6m returns for ticker / SPY / sector ETF, betas, and
-volume regime. Then optionally call tool_get_quote(ticker) and
-tool_get_price_history(ticker) for context. Do not re-call any tool.
+YOUR TOOLS:
+- tool_get_etf_landscape: returns for the ticker, SPY and the sector ETF,
+  betas and the volume regime.
+- tool_get_etf_exposure: fund weights, fund size and the stock's liquidity.
+  A null weight means outside the fund's top ten, not absent from it.
+- tool_get_relative_strength: excess returns, the ratio's position in its
+  one-year range and its z-score.
+- tool_get_sector_rotation: all sectors ranked, and breadth.
+- tool_get_index_event_calendar: rebalance and expiration dates.
 
 Cite the actual numbers - never say "outperforming the sector" without
-the 3m return delta. A 5-bullet thesis must contain at least 3 specific
-numeric observations from the landscape output.
+the return difference. A thesis must contain at least 3 specific numeric
+observations from the tools.
 
 {shared_rules_block()}
 
@@ -88,18 +98,18 @@ above guides your reasoning; the OUTPUT must be the AgentVerdict schema,
 not a free-form ETF flow report.
 """
 
-
 agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
-    tools=[tool_get_etf_landscape, tool_get_quote, tool_get_price_history],
+    tools=[*SHARED_TOOLS, tool_get_etf_landscape, tool_get_etf_exposure,
+           tool_get_relative_strength, tool_get_sector_rotation,
+           tool_get_index_event_calendar],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )
 
 
 async def run(ticker: str) -> AgentVerdict:
-    result = await Runner.run(agent,
-                               input=f"Analyze {ticker} for a 3-6 month horizon.",
+    result = await Runner.run(agent, input=f"Analyze {ticker} for a 3-6 month horizon.",
                                max_turns=25)
     return result.final_output

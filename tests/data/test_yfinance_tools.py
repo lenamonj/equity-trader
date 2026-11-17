@@ -53,45 +53,6 @@ def _fake_history(monkeypatch, n=300):
     return df
 
 
-def test_compute_technicals_returns_keys(monkeypatch):
-    from equity_trader.data.cache import reset_run_cache
-    reset_run_cache()
-    _fake_history(monkeypatch)
-    out = yft.compute_technicals("AAPL")
-    assert {"rsi_14", "macd", "macd_signal", "sma_50", "sma_200",
-            "atr_14", "last_close", "vol_20"}.issubset(out.keys())
-    assert 0 <= out["rsi_14"] <= 100
-
-
-def test_compute_statistical_patterns_returns_keys(monkeypatch):
-    from equity_trader.data.cache import reset_run_cache
-    reset_run_cache()
-    _fake_history(monkeypatch)
-    out = yft.compute_statistical_patterns("AAPL")
-    assert {"autocorr_1d", "autocorr_5d", "monthly_seasonality",
-            "regime", "realized_vol_30d"}.issubset(out.keys())
-    assert out["regime"] in {"trending", "mean_reverting", "mixed"}
-
-
-def test_get_peer_set(monkeypatch):
-    class FakeTicker:
-        info = {"sector": "Technology", "industry": "Semiconductors"}
-
-    monkeypatch.setattr(yft.yf, "Ticker", lambda t: FakeTicker())
-    peers = yft.get_peer_set("NVDA")
-    assert isinstance(peers, list)
-    assert len(peers) >= 1
-    assert "NVDA" not in peers
-
-
-def test_compute_factor_loads_runs(monkeypatch):
-    from equity_trader.data.cache import reset_run_cache
-    reset_run_cache()
-    _fake_history(monkeypatch)
-    out = yft.compute_factor_loads("NVDA", peers=["AMD", "INTC"])
-    assert {"momentum_12_1", "volatility_60d", "rel_strength_vs_peers"}.issubset(out.keys())
-
-
 def test_get_etf_landscape_returns_keys(monkeypatch):
     from equity_trader.data.cache import reset_run_cache
     reset_run_cache()
@@ -122,37 +83,6 @@ def test_get_etf_landscape_returns_keys(monkeypatch):
     assert out["sector_etf"] == "XLK"  # Technology -> XLK
 
 
-def test_horizon_expiry_skips_weeklies():
-    from datetime import date
-
-    from equity_trader.data.yfinance_tools import _horizon_expiry
-    today = date(2026, 11, 17)
-    expiries = ["2026-11-20", "2026-12-18", "2027-01-15", "2027-02-19", "2027-03-19"]
-    assert _horizon_expiry(expiries, today) == "2027-02-19"
-    assert _horizon_expiry(expiries[:2], today) == "2026-12-18"
-
-
-def test_relative_strength_measures_ticker_and_peers_over_the_same_window(monkeypatch):
-    from equity_trader.data.cache import reset_run_cache
-    reset_run_cache()
-    idx = pd.date_range("2025-01-01", periods=300, freq="B")
-
-    def history(ticker, period="2y", interval="1d"):
-        # The ticker doubles over the last 90 sessions; the peer is flat over
-        # them but rallied earlier, which a longer peer window would pick up.
-        prices = np.full(300, 100.0)
-        if ticker == "NVDA":
-            prices[-90:] = 200.0
-        else:
-            prices[:150] = 50.0
-        return pd.DataFrame({"Close": prices}, index=idx)
-
-    monkeypatch.setattr(yft, "get_price_history", history)
-    out = yft.compute_factor_loads("NVDA", peers=["AMD"])
-    assert out["rel_strength_vs_peers"] == pytest.approx(1.0)
-    assert out["as_of"] == idx[-1].date().isoformat()
-
-
 def test_valuation_and_analyst_targets_are_dated(monkeypatch):
     class FakeTicker:
         info = {"trailingPE": 19.5, "targetMeanPrice": 267.65}
@@ -162,3 +92,15 @@ def test_valuation_and_analyst_targets_are_dated(monkeypatch):
     today = date.today().isoformat()
     assert yft.get_valuation("NVDA")["as_of"] == today
     assert yft.get_analyst_targets("NVDA")["as_of"] == today
+
+
+def test_fallback_statements_are_compact_and_dated():
+    periods = pd.to_datetime(["2025-12-31", "2024-12-31"])
+    income = pd.DataFrame({periods[0]: [100.0, 20.0, 1.0], periods[1]: [80.0, 10.0, 2.0]},
+                          index=["Total Revenue", "Net Income", "Tax Rate For Calcs"])
+    cash = pd.DataFrame({periods[0]: [-7.0], periods[1]: [-5.0]}, index=["Capital Expenditure"])
+    out = yft._statement_periods([income, cash, None], limit=4)
+    assert out == [
+        {"period_end": "2025-12-31", "revenue": 100.0, "net_income": 20.0, "capex": 7.0},
+        {"period_end": "2024-12-31", "revenue": 80.0, "net_income": 10.0, "capex": 5.0}]
+    assert yft._statement_periods([None], limit=4) == []

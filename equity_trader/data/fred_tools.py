@@ -30,48 +30,6 @@ def get_series(series_id: str, start: str | None = None) -> pd.Series:
     return s
 
 
-def _latest(series_id: str) -> tuple[float | None, str | None]:
-    """Latest observation and its date, or (None, None) if unavailable."""
-    try:
-        s = get_series(series_id).dropna()
-        return float(s.iloc[-1]), s.index[-1].date().isoformat()
-    except Exception as exc:
-        log.warning("FRED series %s unavailable: %s", series_id, exc)
-        return None, None
-
-
-def _dated(readings: dict[str, tuple[float | None, str | None]]) -> dict:
-    """Values by key, plus an `as_of` map of each value's observation date."""
-    out: dict = {k: value for k, (value, _) in readings.items()}
-    out["as_of"] = {k: as_of for k, (_, as_of) in readings.items()}
-    return out
-
-
-def _cpi_yoy() -> tuple[float | None, str | None]:
-    try:
-        # Interpolate so a missing month (October 2025 was never published)
-        # does not blank the year-over-year reading twelve months later.
-        cpi = get_series("CPIAUCSL").interpolate()
-        return (float((cpi.iloc[-1] / cpi.iloc[-13] - 1.0) * 100.0),
-                cpi.index[-1].date().isoformat())
-    except Exception as exc:
-        log.warning("CPI year-over-year unavailable: %s", exc)
-        return None, None
-
-
-@cached_for_run
-def get_macro_snapshot() -> dict:
-    return _dated({
-        "dgs10": _latest("DGS10"),
-        "dgs2": _latest("DGS2"),
-        "t10y2y": _latest("T10Y2Y"),
-        "cpi_yoy": _cpi_yoy(),
-        "unrate": _latest("UNRATE"),
-        "fedfunds": _latest("FEDFUNDS"),
-        "nfci": _latest("NFCI"),
-        "vix": _latest("VIXCLS"),
-    })
-
 
 # ---------------------------------------------------------------------------
 # Macro dashboard
@@ -310,14 +268,31 @@ def get_release_calendar(horizon_days: int = 180) -> list[dict]:
     return sorted(out, key=lambda r: r["date"])
 
 
-@cached_for_run
+# The dashboard is about fifty FRED requests and its readings do not change
+# within a day, so a complete one is kept for the day and reused across runs.
+_DASHBOARD_BY_DAY: dict[str, dict] = {}
+
+
 def get_macro_dashboard() -> dict:
     """The macro backdrop: rates, inflation, growth, labor, credit, liquidity,
     markets and recession risk, each reading with its direction and history."""
+    today = date.today().isoformat()
+    if today not in _DASHBOARD_BY_DAY:
+        dashboard = _build_dashboard(today)
+        complete = all(row["value"] is not None
+                       for rows in dashboard["groups"].values() for row in rows)
+        if not complete:
+            return dashboard  # a failed series is retried on the next call
+        _DASHBOARD_BY_DAY.clear()
+        _DASHBOARD_BY_DAY[today] = dashboard
+    return _DASHBOARD_BY_DAY[today]
+
+
+def _build_dashboard(today: str) -> dict:
     flat = [spec for specs in DASHBOARD.values() for spec in specs]
     rows = {row["series"]: row for row in _readings(flat)}
     return {
-        "as_of": date.today().isoformat(),
+        "as_of": today,
         "how_to_read": ("value is the latest reading (YoY % where the label says so). "
                         "three_months_ago and year_ago show direction. pctile is where "
                         "the value sits in its own history over pctile_years years."),

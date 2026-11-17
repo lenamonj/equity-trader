@@ -5,6 +5,7 @@ import pandas as pd
 from agents import Runner, function_tool
 
 from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.shared_tools import SHARED_TOOLS
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import yfinance_tools as yft
 from equity_trader.data.technical_tools import YEAR, history, rsi
@@ -136,6 +137,10 @@ def backtest_rules(ticker: str) -> dict:
 
 @function_tool
 def tool_backtest_rules(ticker: str) -> dict:
+    """Eleven long and short trading rules run over the stock's full history at
+    20, 63 and 126 session holds: trades, hit rate, edge over the baseline after
+    costs, t-statistic, and the edge in each half of the history. Also the same
+    rules run on SPY and the sector ETF."""
     return backtest_rules(ticker)
 
 
@@ -144,55 +149,55 @@ who backtests trading strategies against historical data - because any
 strategy that hasn't been tested against real market history is just a
 theory waiting to lose money.
 
-You will be given a single ticker. Run a backtest of two simple,
-well-known rule sets against the ticker's price history and report
-whether either edge is real. Translate the results into a Buy / Hold /
-Sell verdict for the 3-6 month horizon based on whether the most recent
-signal aligns with a statistically credible historical edge.
+You will be given a single ticker. Read a backtest of eleven simple,
+well-known rules against the ticker's full price history and report
+whether any edge is real. Translate the results into a Buy / Hold / Sell
+verdict for the 3-6 month horizon based on whether a rule that is firing
+now has a statistically credible historical edge.
 
 Backtest:
-- Strategy rules codification: the two rules you are testing are
-  precise IF/THEN constructions (RSI mean reversion: buy when RSI<30,
-  hold 20 sessions; SMA crossover: buy when 50dma crosses above 200dma,
-  hold 60 sessions). Treat them as the system; do not invent new ones.
-- Performance metrics for each rule: number of trades (sample size),
-  hit rate (% positive), and average return per trade
-- Statistical significance: with the sample size returned, is the hit
-  rate meaningfully above 50% or is it noise (a 60% rate on 8 trades
-  is noise; the same on 80 trades is signal)
-- Most recent signal alignment: is either rule firing right now, and
-  if so, does the historical edge support acting on it
-- Sharpe-style intuition: even if hit rate is high, is the average
-  return per trade large enough to clear realistic friction (commissions,
-  slippage, spreads)
-- Drawdown intuition: what is the worst single trade in the sample, and
-  what does that say about position sizing
-- Out-of-sample concern: have these specific rules been over-fit to this
-  ticker's history, or do they survive across many tickers (default
-  assumption: single-ticker backtests are weak; downgrade conviction
-  accordingly)
+- The rules are fixed IF/THEN constructions, six long and five short:
+  RSI below 30, golden cross, reclaiming the 200-day average, a new
+  52-week high, a 20% fall from the 52-week high, a bullish MACD cross;
+  and RSI above 70, death cross, losing the 200-day average, a new
+  52-week low, a bearish MACD cross. Treat them as the system; do not
+  invent new ones.
+- Each rule is tested at 20, 63 and 126 session holds. The 63 and 126
+  session results are the ones that match the 3-6 month horizon; weight
+  them, and treat the 20 session result as a short-term reading only.
+- `edge` is the average trade return beyond the baseline, in the rule's
+  own direction, so a positive edge means the rule worked whether it is
+  long or short. `edge_after_cost` deducts the stated trading cost.
+- Statistical significance: `t_stat` near or above 2 on at least 10
+  trades is credible; anything less is noise (a 60% hit rate on 8 trades
+  is noise; the same on 80 trades is signal).
+- Stability: `edge_first_half` and `edge_second_half` should agree in
+  sign. An edge that lives in one half of the history is not an edge.
+- Out-of-sample check: `same_rules_63d_elsewhere` runs the same rules on
+  SPY and the sector ETF. An edge that appears only in this ticker is
+  more likely chance.
+- Multiple testing: `tests_run` results were examined, so expect one or
+  two to clear t = 2 by luck. Require stability and confirmation.
+- Which rules fired in the last 20 sessions, and what their record says.
+- Drawdown intuition: `worst_trade` and what it says about sizing.
 - Survivorship bias: this ticker still trades; that itself is a bias.
   Acknowledge it in your risks.
-- Go / no-go: only call BUY or SELL when at least one rule shows >60%
-  hit rate over >=10 trades AND the most recent signal matches the
-  direction. Otherwise return HOLD with conviction 3.
+- Go / no-go: call BUY or SELL only when a rule that fired in the last 20
+  sessions shows, at the 63 or 126 session hold, at least 10 trades, a
+  positive `edge_after_cost`, a `t_stat` of about 2 or more, the same
+  sign in both halves, and a positive edge for the same rule on SPY or
+  the sector ETF. BUY for a long rule, SELL for a short rule. Otherwise
+  return HOLD with conviction 3.
 
-Use the tool_backtest_simple_rules ONCE to pull the rsi_mean_reversion
-and sma_crossover summaries. Each covers the history from history_start
-to as_of, with non-overlapping trades, and reports trades, hit_rate,
-avg_return, worst_trade, baseline_avg_return (the average return of every
-window of the same length, signal or not), signal_active_now and
-last_signal_date. A rule has an edge only if avg_return clears
-baseline_avg_return on a credible sample. Cite the specific numbers -
-never paraphrase.
+Use tool_backtest_rules ONCE. Cite the specific numbers - never
+paraphrase.
 
 REGARDLESS of the recommendation, your thesis bullets MUST report the
-actual numbers you observed: rule name, hit_rate, sample size (trades),
-avg_return, and whether the rule is currently signaling. Example:
-- "RSI mean reversion: 52% hit rate on 18 trades over 5y, avg 1.4%
-   return vs 1.1% baseline - no edge above noise; not currently signaling."
-- "50/200 SMA crossover: 1 trade in window, sample too small; last
-   signal was X months ago."
+actual numbers you observed for every rule that fired in the last 20
+sessions: rule name, hold, trades, hit_rate, edge_after_cost and t_stat.
+Example:
+- "RSI below 30 (fired 2026-11-17): at 63 sessions, 58 trades, 66% hit
+   rate, edge after cost -1.2%, t -0.24 - no edge."
 Put the FINDINGS in thesis. Put what could be wrong with them in risks
 (survivorship bias, single-ticker fragility, regime change risk).
 
@@ -206,7 +211,7 @@ not a free-form backtest report.
 agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
-    tools=[tool_backtest_rules],
+    tools=[*SHARED_TOOLS, tool_backtest_rules],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )

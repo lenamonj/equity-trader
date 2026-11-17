@@ -1,31 +1,43 @@
 from agents import Runner, function_tool
 
 from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.shared_tools import SHARED_TOOLS, tool_get_index_event_calendar
 from equity_trader.config import AGENT_MODELS
-from equity_trader.data import yfinance_tools as yft
+from equity_trader.data import options_tools
 from equity_trader.schemas import AgentVerdict
 
 AGENT_NAME = "de_shaw_options"
 
 
 @function_tool
-def tool_get_options_chain(ticker: str, expiry: str | None = None) -> dict:
-    return yft.get_options_chain(ticker, expiry)
+def tool_get_options_surface(ticker: str) -> dict:
+    """Up to six expiries from one week to one year. For each: at-the-money
+    implied volatility, the implied move, skew between the 90% put and the 110%
+    call, put/call ratios by volume and open interest, the largest open-interest
+    strikes, and whether it spans the next earnings report. Also unusual volume."""
+    return options_tools.options_surface(ticker)
 
 
 @function_tool
-def tool_compute_iv_stats(ticker: str) -> dict:
-    return yft.compute_iv_stats(ticker)
+def tool_get_volatility_premium(ticker: str) -> dict:
+    """Implied volatility at one and three months against realized volatility
+    over 20, 60 and 120 days, and the implied move over the next earnings
+    report against the average move on past reports."""
+    return options_tools.volatility_premium(ticker)
 
 
 @function_tool
-def tool_get_quote(ticker: str) -> dict:
-    return yft.get_quote(ticker)
+def tool_get_options_chain(ticker: str) -> dict:
+    """Prices, implied volatility, open interest and volume for the expiry
+    inside the 3-6 month horizon, for strikes within 20% of the stock price."""
+    return options_tools.options_chain_near_money(ticker)
 
 
 @function_tool
-def tool_compute_technicals(ticker: str) -> dict:
-    return yft.compute_technicals(ticker)
+def tool_get_market_volatility() -> dict:
+    """VIX at 9 days, 30 days and 3 months, the SKEW index and the MOVE index:
+    level, one-month change and one-year percentile, and the VIX term structure."""
+    return options_tools.market_volatility()
 
 
 INSTRUCTIONS = f"""You are a senior options strategist at D.E. Shaw who
@@ -45,33 +57,40 @@ Architect:
   (covered call, cash-secured put, vertical spread, iron condor,
   straddle, strangle, calendar, LEAPS) - and whether the underlying
   itself is a better expression
-- ATM IV vs realized vol: is IV above realized (overpriced - sellers
-  edge) or below realized (underpriced - buyers edge); use the vol_20
-  technical as the annualized realized proxy
-- Skew read: is the put skew elevated (market paying for downside
-  protection - bearish positioning) or call skew elevated (chasing
-  upside - bullish positioning)
-- Term structure: front-month vs back-month IV - is the market pricing
-  near-term event risk or long-tail uncertainty
-- Greeks landscape: implied delta of the at-the-money chain, theta
-  decay profile, gamma risk if the stock moves
-- Maximum profit scenario: what price would have to be hit, and what
-  is the probability of reaching it over the 3-6 month window
+- Implied vs realized vol: is IV above realized (overpriced - sellers
+  edge) or below realized (underpriced - buyers edge)
+- Skew read: is downside protection bid (positive skew - defensive
+  positioning) or is upside being chased (negative skew)
+- Term structure: near-dated against longer-dated IV - is the market
+  pricing a near-term event or long-tail uncertainty
+- Event pricing: the implied move over the next earnings report against
+  what the stock has actually done on past reports
+- Positioning: put/call ratios, the strikes holding the most open
+  interest, and any unusual volume
+- Expected range: the implied move at the 3 and 6 month expiries is the
+  range the market prices; state it in dollars from the current price
 - Maximum loss scenario: what is the worst-case for someone long the
   underlying given the options-implied tail
-- Breakeven analysis: at what price does owning the stock at today's
-  level produce zero return given expected vol drag
-- Probability of profit: statistical likelihood that being long this
-  stock at the current entry produces a positive return over 3-6 months,
-  derived from the implied distribution
 - Asymmetry assessment: does the risk-reward favor longs (skew shows
   fear, IV is cheap to realized) or shorts (skew shows complacency,
   IV is rich)
+- Market backdrop: is this stock's volatility its own story or part of a
+  market-wide volatility regime
 
-Use the options chain, IV stats, quote, and technicals tools to pull
-real numbers. A high put skew with elevated IV says the market is paying
-up for downside protection - that's positioning information, not just
-direction.
+YOUR TOOLS:
+- tool_get_options_surface: the term structure, skew and positioning.
+- tool_get_volatility_premium: implied against realized, and earnings.
+- tool_get_market_volatility: index volatility and its term structure.
+- tool_get_options_chain: prices near the money for the horizon expiry,
+  for sizing a structure.
+- tool_get_index_event_calendar: options expiration dates in the horizon.
+
+You have no option Greeks and no history of implied volatility, so do not
+quote a delta, a gamma or an IV rank. Quotes are delayed; treat a single
+strike's IV with caution and rely on the at-the-money and 90/110 readings.
+
+A high put skew with elevated IV says the market is paying up for
+downside protection - that's positioning information, not just direction.
 
 {shared_rules_block()}
 
@@ -83,8 +102,9 @@ not a free-form options memo.
 agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
-    tools=[tool_get_options_chain, tool_compute_iv_stats,
-           tool_get_quote, tool_compute_technicals],
+    tools=[*SHARED_TOOLS, tool_get_options_surface, tool_get_volatility_premium,
+           tool_get_market_volatility, tool_get_options_chain,
+           tool_get_index_event_calendar],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )

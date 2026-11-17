@@ -1,23 +1,43 @@
 from agents import Runner, function_tool
 
 from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.shared_tools import SHARED_TOOLS
 from equity_trader.config import AGENT_MODELS
-from equity_trader.data import yfinance_tools as yft
+from equity_trader.data import pattern_tools
 from equity_trader.schemas import AgentVerdict
 
 AGENT_NAME = "renaissance_pattern"
 
 
 @function_tool
-def tool_get_price_history(ticker: str, period: str = "2y") -> list[dict]:
-    df = yft.get_price_history(ticker, period=period)
-    out = df[["Close", "Volume"]].tail(252).reset_index()
-    return out.assign(Date=lambda d: d["Date"].astype(str)).to_dict(orient="records")
+def tool_get_seasonality(ticker: str) -> dict:
+    """Calendar effects over the stock's full history: average return, hit rate
+    and t-statistic by month and by weekday, and the turn-of-month effect."""
+    return pattern_tools.seasonality(ticker)
 
 
 @function_tool
-def tool_compute_statistical_patterns(ticker: str) -> dict:
-    return yft.compute_statistical_patterns(ticker)
+def tool_get_earnings_event_study(ticker: str) -> dict:
+    """How the stock traded around each past earnings report: the five days
+    before, the reaction day, and 5, 20 and 60 days after, split by whether the
+    company beat or missed estimates."""
+    return pattern_tools.earnings_event_study(ticker)
+
+
+@function_tool
+def tool_get_forward_return_study(ticker: str) -> dict:
+    """What followed in the stock's own history: returns over 5 to 126 sessions
+    after two-sigma daily shocks, and over 63 and 126 sessions after days that
+    looked like today, against the all-days baseline."""
+    return pattern_tools.forward_return_study(ticker)
+
+
+@function_tool
+def tool_get_volatility_and_gaps(ticker: str) -> dict:
+    """The volatility regime and its percentile, volatility clustering, return
+    autocorrelation at daily, weekly and monthly lags, forward returns by
+    volatility regime, and how opening gaps of 2% or more have resolved."""
+    return pattern_tools.volatility_and_gaps(ticker)
 
 
 INSTRUCTIONS = f"""You are a senior quantitative researcher at Renaissance
@@ -31,34 +51,40 @@ whatever statistical edges actually exist in the price history. Treat
 price as data, not narrative.
 
 Scan:
-- Seasonal patterns: does this asset have statistically significant
-  tendencies during specific months, weeks, or days (January effect,
-  end-of-quarter rebalancing, Monday reversals)
-- Earnings pattern analysis: how does this stock typically behave 5 days
-  before, day of, and 5 days after earnings announcements
-- Volume profile: at which price levels does the most trading occur, and
-  what do volume spikes predict
-- Gap analysis: how often does this asset gap up or down at the open, and
-  does it tend to fill the gap or continue
+- Seasonal patterns: does this stock have statistically significant
+  tendencies in specific months or weekdays, and is the current or coming
+  month one of them
+- Earnings pattern analysis: how does this stock typically behave before,
+  on, and after earnings announcements, and does a beat or a miss drift
+- Gap analysis: how often does this stock gap at the open, and does it
+  tend to fill the gap or continue
 - Mean reversion tendency: after extreme moves (2+ standard deviations),
-  how reliably does this asset revert to the mean
-- Momentum persistence: after strong trends, does this asset tend to
-  continue trending or reverse - quantify the autocorrelation
-- Correlation patterns: which other assets, sectors, or indicators
-  reliably predict this asset's next move
-- Volatility clustering: does this asset go through alternating periods
-  of high and low volatility that can be anticipated
-- Order flow signals: what do unusual options volume, short interest
-  changes, or institutional buying patterns suggest
+  what has followed
+- Momentum persistence: does this stock tend to continue or reverse -
+  quantify the autocorrelation at each lag
+- Volatility clustering: does this stock go through alternating periods
+  of high and low volatility, which regime is it in, and what has
+  followed that regime
+- Days like today: what the stock did over the next 3 and 6 months when
+  it was in the same state as now
+- Positioning: short interest and its recent change, from the snapshot
 - Statistical edge quantification: for each pattern found, what is the
-  historical win rate, sample size, and average profit - and is the
+  historical hit rate, sample size, and average return - and is the
   sample large enough to trust
 
-Use the statistical pattern and price history tools to pull real numbers
-(autocorrelation, regime, monthly seasonality, realized vol). Be rigorous
-about not over-fitting: if a pattern relies on a handful of samples, say
-so explicitly and downgrade conviction. A 60% win rate on 8 trades is
-noise; the same on 80 trades is signal.
+YOUR TOOLS:
+- tool_get_seasonality: calendar effects with n and t-statistics.
+- tool_get_earnings_event_study: behavior around past reports.
+- tool_get_forward_return_study: outcomes after shocks and after days like
+  today. ALWAYS compare a conditional result with baseline_all_days: a 60%
+  hit rate means nothing if the baseline is 67%.
+- tool_get_volatility_and_gaps: regime, persistence and gap behavior.
+
+Be rigorous about not over-fitting. Forward windows overlap, so judge
+evidence by `episodes`, not by `days`. A pattern with a handful of
+episodes is noise; say so explicitly and downgrade conviction. A 60% win
+rate on 8 trades is noise; the same on 80 trades is signal. When many
+calendar buckets are tested, some clear the significance bar by chance.
 
 {shared_rules_block()}
 
@@ -70,7 +96,8 @@ not a free-form pattern report.
 agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
-    tools=[tool_get_price_history, tool_compute_statistical_patterns],
+    tools=[*SHARED_TOOLS, tool_get_seasonality, tool_get_earnings_event_study,
+           tool_get_forward_return_study, tool_get_volatility_and_gaps],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )

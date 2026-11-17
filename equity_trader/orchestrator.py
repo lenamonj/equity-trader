@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime, timedelta
 from agents import Runner
 
 from equity_trader.agents.base import build_agent
-from equity_trader.config import AGENT_WEIGHTS, ORCHESTRATOR_MODEL
+from equity_trader.config import AGENT_PERSONAS, AGENT_WEIGHTS, ORCHESTRATOR_MODEL
 from equity_trader.data.calendar_tools import get_real_catalysts
 from equity_trader.schemas import AgentVerdict, CatalystEvent, OrchestratorVerdict
 from equity_trader.scoring import (
@@ -33,8 +33,9 @@ You will be given:
 - The weight of each agent. Weights are fixed; you cannot change them.
 - The deterministic weighted_score already computed from those weights.
 - The current price of the ticker.
-- A REAL_CATALYSTS list sourced from yfinance (earnings, dividends). Treat
-  these as ground truth.
+- A REAL_CATALYSTS list: earnings and dividend dates from yfinance, and
+  scheduled macro data releases from FRED. Treat these as ground truth.
+- DESK_NAMES, the house name for each `agent` code.
 
 Hard rules:
 1. Horizon is strictly 3-6 months from TODAY. Reject theses pegged to longer
@@ -64,6 +65,9 @@ Hard rules:
 
 10. `dominant_drivers` lists the `agent` names (e.g. 'jpm_fundamental') of the
    one to three desks whose verdicts drove your call. Names only, no prose.
+11. Everywhere else - `synthesis`, `key_agreements`, `key_disagreements`,
+   `red_flags`, `score_departure_rationale` - refer to a desk by its house
+   name from DESK_NAMES (e.g. 'Goldman Sachs'), never by its `agent` code.
 
 Write a 150-300 word synthesis in `synthesis` that reads like a PM memo -
 direct, evidence-cited, no hedging filler.
@@ -98,7 +102,10 @@ def _format_input(ticker: str, verdicts: list[AgentVerdict],
         f"Weights: {AGENT_WEIGHTS}",
         f"Deterministic weighted_score: {weighted_score:.4f}",
         "",
-        "REAL_CATALYSTS (from yfinance, treat as ground truth):",
+        "DESK_NAMES: " + "; ".join(f"{code} = {house} ({discipline})"
+                                   for code, (house, discipline) in AGENT_PERSONAS.items()),
+        "",
+        "REAL_CATALYSTS (treat as ground truth):",
         *catalyst_lines,
         "",
         "Agent verdicts:",

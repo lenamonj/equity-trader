@@ -2,6 +2,7 @@ import os
 
 import pytest
 
+from equity_trader.data import fred_tools
 from equity_trader.data.cache import reset_run_cache
 
 # Set env vars at module level so they are present when agent modules are
@@ -27,3 +28,4 @@ def _set_test_env(monkeypatch):
 @pytest.fixture(autouse=True)
 def _fresh_run_cache():
     reset_run_cache()
+    fred_tools._DASHBOARD_BY_DAY.clear()

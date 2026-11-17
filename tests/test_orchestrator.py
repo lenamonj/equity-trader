@@ -201,6 +201,23 @@ async def test_orchestrator_injects_real_catalysts_even_if_llm_drops_them(monkey
                for c in out.catalyst_calendar)
 
 
+def test_orchestrator_input_names_each_desk_by_house():
+    text = orch._format_input("NVDA", [], 100.0, 0.0, date(2026, 11, 17), [])
+    assert "gs_technical = Goldman Sachs (Technical)" in text
+    assert "REAL_CATALYSTS" in text
+
+
+def test_catalysts_include_scheduled_macro_releases(monkeypatch):
+    from equity_trader.data import calendar_tools
+    monkeypatch.setattr(calendar_tools, "_calendar",
+                        lambda ticker: {"Earnings Date": [date(2026, 11, 20)]})
+    monkeypatch.setattr(calendar_tools.fred_tools, "get_release_calendar",
+                        lambda horizon_days: [{"date": "2026-12-10", "release": "CPI"}])
+    out = calendar_tools.get_real_catalysts("NVDA", date(2026, 11, 17))
+    assert [(c["date"], c["event"], c["expected_impact"]) for c in out] == [
+        ("2026-11-20", "Earnings release", "HIGH"), ("2026-12-10", "CPI release", "MEDIUM")]
+
+
 @pytest.mark.asyncio
 async def test_orchestrator_falls_back_on_llm_failure():
     verdicts = [_v("jpm_fundamental", "BUY", 8)]

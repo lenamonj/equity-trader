@@ -11,6 +11,7 @@ from datetime import date, timedelta
 
 import yfinance as yf
 
+from equity_trader.data import fred_tools
 from equity_trader.data.cache import cached_for_run
 
 log = logging.getLogger(__name__)
@@ -50,10 +51,9 @@ def get_real_catalysts(ticker: str, today: date,
                         horizon_days: int = 180) -> list[dict]:
     """Return events whose date is known and falls within the horizon.
 
-    Each entry: {event, date (ISO), expected_impact, notes}.
-    Currently sources next earnings, next dividend, and ex-dividend dates from
-    yfinance's calendar endpoint. Extend with FOMC/CPI dates from FRED if
-    macro events become relevant downstream.
+    Each entry: {event, date (ISO), expected_impact, notes}. Earnings and
+    dividend dates come from yfinance's calendar; scheduled CPI, jobs, GDP and
+    PCE releases come from FRED's release calendar.
     """
     out: list[dict] = []
     cal = _calendar(ticker)
@@ -85,4 +85,7 @@ def get_real_catalysts(ticker: str, today: date,
                 "notes": "Source: yfinance calendar",
             })
 
+    out += [{"event": f"{release['release']} release", "date": release["date"],
+             "expected_impact": "MEDIUM", "notes": "Source: FRED release calendar"}
+            for release in fred_tools.get_release_calendar(horizon_days)]
     return sorted(out, key=lambda c: c["date"])
