@@ -38,7 +38,7 @@ Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its out
 
 | Desk | Module | Weight | Tools |
 |---|---|---:|---|
-| J.P. Morgan, Fundamental | `jpm_fundamental` | 25 | fundamentals, analyst targets, latest 10-K, latest 10-Q, recent 8-Ks |
+| J.P. Morgan, Fundamental | `jpm_fundamental` | 25 | financial statements, valuation, analyst targets, filing dates |
 | Bridgewater Associates, All-Weather Macro | `bridgewater_macro` | 18 | macro snapshot, FRED series, sector macro, sector ETF history |
 | Goldman Sachs, Technical | `gs_technical` | 12 | price history, technicals, quote |
 | Citadel, Quantitative | `citadel_quant` | 12 | peer set, factor loads, macro snapshot, quote |
@@ -99,8 +99,8 @@ All market data is free. Every tool is memoized per run by `cached_for_run` (`da
 
 | Module | Provides |
 |---|---|
-| `yfinance_tools.py` | price history, quote, annual and quarterly statements, valuation multiples, analyst targets, technicals, statistical patterns, options chain and IV stats, peer set, factor loads, ETF landscape |
-| `edgar_tools.py` | filing metadata only: latest 10-K and 10-Q, recent 8-Ks with item codes |
+| `yfinance_tools.py` | price history, quote, financial statements, valuation multiples, analyst targets, technicals, statistical patterns, options chain and IV stats, peer set, factor loads, ETF landscape |
+| `edgar_tools.py` | filing dates for the latest 10-K and 10-Q, item codes for recent 8-Ks. No statement data |
 | `fred_tools.py` | macro snapshot (DGS10, DGS2, T10Y2Y, CPI year over year, UNRATE, FEDFUNDS, NFCI, VIX), single series, sector series |
 | `calendar_tools.py` | upcoming earnings and dividend dates inside the horizon |
 

@@ -174,9 +174,9 @@ All market data is free. No paid feeds.
 
 | Source | Used for |
 |---|---|
-| yfinance | Price history, annual and quarterly statements, valuation multiples, options chains, analyst targets, peer sets, earnings and dividend calendar |
-| SEC EDGAR | Filing index: latest 10-K and 10-Q dates, recent 8-Ks with item codes |
-| FRED | Macro series, each with its observation date: DGS10, DGS2, T10Y2Y, CPI, UNRATE, FEDFUNDS, NFCI, VIX |
+| yfinance | Prices, financial statements, valuation multiples, analyst targets, options, earnings and dividend dates |
+| SEC EDGAR | Filing dates and 8-K item codes. No statement data |
+| FRED | Rates, inflation, unemployment, financial conditions, VIX |
 
 <br>
 
