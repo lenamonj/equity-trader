@@ -107,7 +107,7 @@ score = sum( sign(recommendation) * conviction * weight ) / 100
 
 The orchestrator reads the score and all eight verdicts, then writes a 150 to 300 word memo. It may depart from the default weights, but it must then explain why in writing.
 
-After the LLM call, the score, the run timestamp, the current price, the agent verdicts and the sourced catalysts are stamped over whatever the model returned. The model cannot alter them.
+After the LLM call, the score, the conviction-weighted price target, the run timestamp, the current price, the agent verdicts and the sourced catalysts are stamped over whatever the model returned. The model cannot alter them. A call that contradicts the sign of the score without a written rationale is flagged on the report.
 
 <br>
 
