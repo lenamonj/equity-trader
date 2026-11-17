@@ -43,7 +43,7 @@ def seasonality(ticker: str) -> dict:
             _MONTHS[m - 1]: _mean_stats(monthly[monthly.index.month == m])
             for m in range(1, 13)},
         "daily_return_bps_by_weekday": {
-            _WEEKDAYS[d]: _mean_stats(daily[daily.index.dayofweek == d], scale=1e4, digits=1)
+            _WEEKDAYS[d]: _mean_stats(daily[daily.index.day_of_week == d], scale=1e4, digits=1)
             for d in range(5)},
         "turn_of_month": {
             "last_day_and_first_three_bps": _mean_stats(daily[turn], scale=1e4, digits=1),
