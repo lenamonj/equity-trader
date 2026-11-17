@@ -38,7 +38,7 @@ Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its out
 
 | Desk | Module | Weight | Tools |
 |---|---|---:|---|
-| J.P. Morgan, Fundamental | `jpm_fundamental` | 25 | SEC financial statements, valuation multiples, analyst targets, recent 8-Ks |
+| J.P. Morgan, Fundamental | `jpm_fundamental` | 25 | SEC financial statements, valuation multiples, analyst targets, recent 8-K text |
 | Bridgewater Associates, All-Weather Macro | `bridgewater_macro` | 18 | macro snapshot, FRED series, sector macro, sector ETF history |
 | Goldman Sachs, Technical | `gs_technical` | 12 | price history, technicals, quote |
 | Citadel, Quantitative | `citadel_quant` | 12 | peer set, factor loads, macro snapshot, quote |
@@ -100,7 +100,7 @@ All market data is free. Every tool is memoized per run by `cached_for_run` (`da
 | Module | Provides |
 |---|---|
 | `yfinance_tools.py` | price history, quote, valuation multiples, analyst targets, technicals, statistical patterns, options chain and IV stats, peer set, factor loads, ETF landscape |
-| `edgar_tools.py` | financial statements as filed (XBRL company facts), item codes for recent 8-Ks |
+| `edgar_tools.py` | financial statements as filed (XBRL company facts), the five most recent 8-Ks with named items and filing text |
 | `fred_tools.py` | macro snapshot (DGS10, DGS2, T10Y2Y, CPI year over year, UNRATE, FEDFUNDS, NFCI, VIX), single series, sector series |
 | `calendar_tools.py` | upcoming earnings and dividend dates inside the horizon |
 
@@ -110,6 +110,8 @@ Financial statements come from the SEC, not from a market data vendor. `get_fina
 - Companies file different XBRL tags for the same line. The candidate tag reported most recently is used, and the output names it.
 - Filings give cash flow items and fourth quarters only as year-to-date figures. A single quarter is the difference between consecutive year-to-date figures. Per-share figures are never derived.
 - A company with no US-GAAP annual statements on EDGAR (IFRS filers, funds) falls back to yfinance statements. The `source` field in the tool output says which was used.
+
+Recent events come from 8-Ks. `get_recent_8ks` returns the five most recent, each with its filing date, its item codes translated to names in code (5.02 is a director or officer departure or appointment), and the filing's own text up to 6,000 characters, exhibits excluded. The J.P. Morgan desk must read each one and put any material event (management change, guidance, acquisition, new obligation, impairment, restatement) in its thesis or risks with the filing date.
 
 Rules the data layer holds to:
 

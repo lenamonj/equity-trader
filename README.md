@@ -101,6 +101,7 @@ Every desk's reasoning stays on the page. Nothing is averaged away.
 - **Rate-limit aware fan-out.** A semaphore runs three agents at a time, with exponential backoff on `RateLimitError`.
 - **One fetch per run.** Data tools are memoized in a per-run `ContextVar` cache, so eight agents share fetches instead of hammering the APIs.
 - **Temporal grounding.** The orchestrator is handed today's date, the current price, and a real catalyst calendar. Any catalyst dated outside the horizon is dropped in code.
+- **Events, not just numbers.** The fundamental desk reads the company's five most recent 8-Ks in full, so a CEO departure, an acquisition or a new guarantee is weighed in the call before it shows up in any statement.
 - **Dated inputs.** Every reading a desk sees carries its observation date, and the backtest reports an unconditional baseline next to each rule, so a stale number or a fake edge is visible to the chair.
 - **Graceful degradation.** A failed desk is excluded and its weight is redistributed. Only the runner can mark a desk as failed. If the orchestrator call fails, a mechanical aggregation takes its place.
 
@@ -174,7 +175,7 @@ All market data is free. No paid feeds.
 
 | Source | Used for |
 |---|---|
-| SEC EDGAR | Financial statements as filed, with filing dates. 8-K item codes |
+| SEC EDGAR | Financial statements as filed, with filing dates. The text of recent 8-Ks |
 | yfinance | Prices, valuation multiples, analyst targets, options, earnings and dividend dates |
 | FRED | Rates, inflation, unemployment, financial conditions, VIX |
 
