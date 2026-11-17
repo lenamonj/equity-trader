@@ -1268,11 +1268,11 @@ def _synthesis_html(v: OrchestratorVerdict) -> str:
             f'<div class="sb-value">{_e(drivers_text)}</div>'
             f'</div>'
         )
-    if v.weight_overrides_rationale:
+    if v.score_departure_rationale:
         sidebar.append(
             f'<div class="sb-block">'
-            f'<div class="sb-label">Weight Override</div>'
-            f'<div class="sb-value" style="font-size:14px">{_e(v.weight_overrides_rationale)}</div>'
+            f'<div class="sb-label">Departure From Score</div>'
+            f'<div class="sb-value" style="font-size:14px">{_e(v.score_departure_rationale)}</div>'
             f'</div>'
         )
     sidebar_html = "".join(sidebar)

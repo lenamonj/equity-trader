@@ -7,7 +7,9 @@ from equity_trader.agents.base import build_agent
 from equity_trader.config import AGENT_WEIGHTS, ORCHESTRATOR_MODEL
 from equity_trader.data.calendar_tools import get_real_catalysts
 from equity_trader.schemas import AgentVerdict, CatalystEvent, OrchestratorVerdict
-from equity_trader.scoring import compute_weighted_score, conviction_weighted_target
+from equity_trader.scoring import (
+    compute_weighted_score, conviction_weighted_target, redistribute_weights,
+)
 
 
 _HORIZON_DAYS = 180
@@ -26,7 +28,7 @@ You will be given:
   for dates).
 - Each agent's full AgentVerdict (recommendation, conviction, target, thesis,
   risks, data_cited, error_note).
-- The default weights for each agent.
+- The weight of each agent. Weights are fixed; you cannot change them.
 - The deterministic weighted_score already computed from those weights.
 - The current price of the ticker.
 - A REAL_CATALYSTS list sourced from yfinance (earnings, dividends). Treat
@@ -35,11 +37,12 @@ You will be given:
 Hard rules:
 1. Horizon is strictly 3-6 months from TODAY. Reject theses pegged to longer
    windows or to past dates.
-2. You may use the default weights or override them. If you override, populate
-   `weight_overrides_rationale` explaining why (e.g., 'downweighting macro
-   because Fed meeting is post-horizon').
+2. The weighted_score is the committee's mechanical reading. Your
+   `final_recommendation` is a judgment and may depart from it.
 3. If your `final_recommendation` sign disagrees with the sign of
-   `weighted_score`, you MUST populate `weight_overrides_rationale`.
+   `weighted_score`, you MUST populate `score_departure_rationale` explaining
+   why (e.g., 'macro desk's call hinges on a Fed meeting that is
+   post-horizon'). Otherwise leave it null.
 4. Surface disagreements explicitly in `key_disagreements`. Do not paper over splits.
 5. Set `price_target_6mo` to null. It is computed in code as the
    conviction-weighted average of agent targets after you respond.
@@ -87,8 +90,8 @@ def _format_input(ticker: str, verdicts: list[AgentVerdict],
         f"HORIZON_END (3-6mo): {horizon_end.isoformat()}",
         f"Ticker: {ticker}",
         f"Current price: {current_price}",
-        f"Default weights: {AGENT_WEIGHTS}",
-        f"Deterministic weighted_score (using defaults): {weighted_score:.4f}",
+        f"Weights: {AGENT_WEIGHTS}",
+        f"Deterministic weighted_score: {weighted_score:.4f}",
         "",
         "REAL_CATALYSTS (from yfinance, treat as ground truth):",
         *catalyst_lines,
@@ -117,8 +120,8 @@ def _mechanical_fallback(ticker: str, verdicts: list[AgentVerdict],
         conviction=min(10, max(1, int(abs(weighted_score) + 1))),
         price_target_6mo=conviction_weighted_target(verdicts),
         weighted_score=weighted_score,
-        weights_used=AGENT_WEIGHTS,
-        weight_overrides_rationale=None,
+        weights_used=_effective_weights(verdicts),
+        score_departure_rationale=None,
         synthesis=("LLM synthesis unavailable; mechanical aggregation below. "
                    f"Deterministic weighted score = {weighted_score:.2f} "
                    f"on default weights. Recommendation derived from score sign."),
@@ -151,9 +154,10 @@ _UNEXPLAINED_DEPARTURE = ("Recommendation contradicts the sign of the committee 
 _SIGN = {"BUY": 1, "HOLD": 0, "SELL": -1}
 
 
-def _valid_weights(weights: dict[str, float]) -> bool:
-    return (weights.keys() == AGENT_WEIGHTS.keys()
-            and abs(sum(weights.values()) - 100.0) < 0.5)
+def _effective_weights(verdicts: list[AgentVerdict]) -> dict[str, float]:
+    """The weights the score was actually computed with: failed agents drop out."""
+    return redistribute_weights(AGENT_WEIGHTS,
+                                {v.agent for v in verdicts if v.error_note})
 
 
 def _stamp_deterministic(v: OrchestratorVerdict, ticker: str,
@@ -178,7 +182,7 @@ def _stamp_deterministic(v: OrchestratorVerdict, ticker: str,
     # Rule 3 of the prompt, enforced: a call against the score needs a reason.
     red_flags = list(v.red_flags)
     if (_SIGN[v.final_recommendation] * weighted < 0
-            and not v.weight_overrides_rationale):
+            and not v.score_departure_rationale):
         red_flags.append(_UNEXPLAINED_DEPARTURE)
 
     return v.model_copy(update={
@@ -187,7 +191,7 @@ def _stamp_deterministic(v: OrchestratorVerdict, ticker: str,
         "current_price": current_price,
         "weighted_score": weighted,
         "price_target_6mo": conviction_weighted_target(verdicts),
-        "weights_used": v.weights_used if _valid_weights(v.weights_used) else AGENT_WEIGHTS,
+        "weights_used": _effective_weights(verdicts),
         "red_flags": red_flags,
         "agent_verdicts": verdicts,
         "catalyst_calendar": llm_catalysts,

@@ -30,7 +30,7 @@ async def test_analyze_ticker_calls_all_agents_then_orchestrator(monkeypatch, tm
     fake_orch = OrchestratorVerdict(
         ticker="NVDA", run_timestamp=datetime.utcnow(), current_price=190.0,
         final_recommendation="BUY", conviction=7, price_target_6mo=210.0,
-        weighted_score=3.5, weights_used={}, weight_overrides_rationale=None,
+        weighted_score=3.5, weights_used={}, score_departure_rationale=None,
         synthesis="x" * 60,
         key_agreements=[], key_disagreements=[], dominant_drivers=[],
         red_flags=[], position_sizing_suggestion="starter (~1%)",
@@ -66,7 +66,7 @@ async def test_analyze_ticker_survives_one_agent_failure(monkeypatch):
     fake_orch = OrchestratorVerdict(
         ticker="NVDA", run_timestamp=datetime.utcnow(), current_price=190.0,
         final_recommendation="HOLD", conviction=5, price_target_6mo=None,
-        weighted_score=1.0, weights_used={}, weight_overrides_rationale=None,
+        weighted_score=1.0, weights_used={}, score_departure_rationale=None,
         synthesis="x" * 60,
         key_agreements=[], key_disagreements=[], dominant_drivers=[],
         red_flags=[], position_sizing_suggestion="not sizeable",

@@ -15,7 +15,7 @@ def _verdict():
         ticker="NVDA", run_timestamp=datetime(2026, 6, 7, 12, 0, 0),
         current_price=190.0, final_recommendation="BUY", conviction=7,
         price_target_6mo=210.0, weighted_score=3.5,
-        weights_used={"jpm_fundamental": 100.0}, weight_overrides_rationale=None,
+        weights_used={"jpm_fundamental": 100.0}, score_departure_rationale=None,
         synthesis="A test synthesis sufficiently long to meet the minimum length.",
         key_agreements=[], key_disagreements=[], dominant_drivers=[],
         red_flags=[], position_sizing_suggestion="starter (~1%)",

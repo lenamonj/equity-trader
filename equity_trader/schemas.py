@@ -37,7 +37,7 @@ class OrchestratorVerdict(BaseModel):
     price_target_6mo: Optional[float] = None
     weighted_score: float
     weights_used: dict[str, float]
-    weight_overrides_rationale: Optional[str] = None
+    score_departure_rationale: Optional[str] = None
     synthesis: str = Field(min_length=50, max_length=3000)
     key_agreements: list[str]
     key_disagreements: list[str]

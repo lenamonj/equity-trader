@@ -35,7 +35,7 @@ async def test_orchestrator_run_returns_orchestrator_verdict():
         ticker="NVDA", run_timestamp=datetime.now(timezone.utc), current_price=190.0,
         final_recommendation="BUY", conviction=7, price_target_6mo=210.0,
         weighted_score=3.55, weights_used={"jpm_fundamental": 25.0},
-        weight_overrides_rationale=None,
+        score_departure_rationale=None,
         synthesis="Strong fundamentals confirmed by technicals; macro acceptable for horizon.",
         key_agreements=["FCF and technicals align"],
         key_disagreements=["Macro vs fundamental on rate path"],
@@ -60,7 +60,7 @@ async def test_orchestrator_stamps_deterministic_fields_over_llm_hallucination()
         ticker="WRONG", run_timestamp=datetime(2020, 1, 1),
         current_price=999.0, final_recommendation="BUY", conviction=7,
         price_target_6mo=210.0, weighted_score=99.9,
-        weights_used={"made_up_agent": 100.0}, weight_overrides_rationale=None,
+        weights_used={"made_up_agent": 100.0}, score_departure_rationale=None,
         synthesis="A synthesis sufficiently long to clear the schema minimum length.",
         key_agreements=[], key_disagreements=[], dominant_drivers=[],
         red_flags=[], position_sizing_suggestion="starter (~1%)",
@@ -81,7 +81,7 @@ async def test_orchestrator_stamps_deterministic_fields_over_llm_hallucination()
     assert "synthesis sufficiently long" in out.synthesis
     # Price target is computed from agent targets, not taken from the LLM
     assert out.price_target_6mo == 215.0
-    # Weights that do not cover the committee fall back to the defaults
+    # Weights are never taken from the LLM
     assert out.weights_used == AGENT_WEIGHTS
 
 
@@ -90,7 +90,7 @@ def _llm_verdict(rec, rationale=None, weights=None):
         ticker="NVDA", run_timestamp=datetime(2020, 1, 1), current_price=1.0,
         final_recommendation=rec, conviction=7, price_target_6mo=None,
         weighted_score=0.0, weights_used=weights or dict(AGENT_WEIGHTS),
-        weight_overrides_rationale=rationale,
+        score_departure_rationale=rationale,
         synthesis="A synthesis sufficiently long to clear the schema minimum length.",
         key_agreements=[], key_disagreements=[], dominant_drivers=[],
         red_flags=["existing flag"], position_sizing_suggestion="starter (~1%)",
@@ -120,10 +120,14 @@ async def test_orchestrator_accepts_call_against_score_with_rationale():
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_keeps_valid_weight_override():
-    override = dict(AGENT_WEIGHTS, jpm_fundamental=30.0, bridgewater_macro=13.0)
-    out = await _run_with(_llm_verdict("HOLD", weights=override), [_v("jpm_fundamental", "BUY", 8)])
-    assert out.weights_used == override
+async def test_orchestrator_reports_weights_the_score_was_computed_with():
+    llm_weights = dict(AGENT_WEIGHTS, jpm_fundamental=30.0, bridgewater_macro=13.0)
+    verdicts = [_v("jpm_fundamental", "BUY", 8),
+                _v("gs_technical", "HOLD", 1, None, err="boom")]
+    out = await _run_with(_llm_verdict("HOLD", weights=llm_weights), verdicts)
+    assert "gs_technical" not in out.weights_used
+    assert abs(sum(out.weights_used.values()) - 100.0) < 1e-9
+    assert out.weights_used["jpm_fundamental"] > AGENT_WEIGHTS["jpm_fundamental"]
 
 
 @pytest.mark.asyncio
@@ -142,7 +146,7 @@ async def test_orchestrator_drops_out_of_window_catalysts(monkeypatch):
         ticker="AVGO", run_timestamp=datetime.now(timezone.utc), current_price=300.0,
         final_recommendation="HOLD", conviction=5, price_target_6mo=320.0,
         weighted_score=2.0, weights_used={"jpm_fundamental": 100.0},
-        weight_overrides_rationale=None,
+        score_departure_rationale=None,
         synthesis="A synthesis sufficiently long to clear the schema minimum length.",
         key_agreements=[], key_disagreements=[], dominant_drivers=[],
         red_flags=[], position_sizing_suggestion="starter (~1%)",
@@ -180,7 +184,7 @@ async def test_orchestrator_injects_real_catalysts_even_if_llm_drops_them(monkey
         ticker="AVGO", run_timestamp=datetime.now(timezone.utc), current_price=300.0,
         final_recommendation="BUY", conviction=7, price_target_6mo=320.0,
         weighted_score=4.0, weights_used={"jpm_fundamental": 100.0},
-        weight_overrides_rationale=None,
+        score_departure_rationale=None,
         synthesis="A synthesis sufficiently long to clear the schema minimum length.",
         key_agreements=[], key_disagreements=[], dominant_drivers=[],
         red_flags=[], position_sizing_suggestion="starter (~1%)",
