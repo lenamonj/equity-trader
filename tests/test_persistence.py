@@ -23,6 +23,14 @@ def _verdict():
     )
 
 
+def test_snapshot_is_utf8_whatever_the_platform_default(tmp_path):
+    v = _verdict().model_copy(update={
+        "synthesis": "Edge after cost is \u22121.2% and the target is \u20ac210, per the desks."})
+    persist(v, db_path=str(tmp_path / "et.db"), runs_dir=str(tmp_path / "runs"))
+    snap = next((tmp_path / "runs").glob("*.json"))
+    assert "\u22121.2%" in json.loads(snap.read_text(encoding="utf-8"))["synthesis"]
+
+
 def test_persist_writes_sqlite_and_json(tmp_path):
     db = tmp_path / "et.db"
     runs_dir = tmp_path / "runs"

@@ -38,7 +38,7 @@ def persist(verdict: OrchestratorVerdict,
     run_id = str(uuid.uuid4())
     ts = verdict.run_timestamp.strftime("%Y-%m-%d_%H%M%S")
     snap_path = Path(runs_dir) / f"{verdict.ticker}_{ts}.json"
-    snap_path.write_text(verdict.model_dump_json(indent=2))
+    snap_path.write_text(verdict.model_dump_json(indent=2), encoding="utf-8")
 
     con = sqlite3.connect(db_path)
     try:

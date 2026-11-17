@@ -6,6 +6,7 @@ import pytest
 import respx
 
 from equity_trader.data import fred_tools as ft
+from equity_trader.data.cache import reset_run_cache
 
 
 class FakeFred:
@@ -114,10 +115,42 @@ def test_macro_dashboard_is_fetched_once_a_day_when_complete(monkeypatch):
     assert ft.get_macro_dashboard() is first and len(calls) == fetched
 
 
-def test_incomplete_macro_dashboard_is_not_kept(monkeypatch):
+def test_incomplete_macro_dashboard_is_kept_for_the_run_only(monkeypatch):
     monkeypatch.setattr(ft, "Fred", FakeFred)  # too short for year-over-year readings
     monkeypatch.setattr(ft, "get_release_calendar", lambda: [])
-    assert ft.get_macro_dashboard() is not ft.get_macro_dashboard()
+    first = ft.get_macro_dashboard()
+    assert ft.get_macro_dashboard() is first
+    reset_run_cache()
+    assert ft.get_macro_dashboard() is not first
+
+
+def test_desks_asking_together_build_one_dashboard(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from contextvars import copy_context
+
+    calls = []
+
+    class CountingFred(FakeFred):
+        def get_series(self, series_id, observation_start=None):
+            calls.append(series_id)
+            idx = pd.date_range("2022-01-01", periods=40, freq="MS")
+            return pd.Series([1.0 + i for i in range(40)], index=idx)
+
+    monkeypatch.setattr(ft, "Fred", CountingFred)
+    monkeypatch.setattr(ft, "get_release_calendar", lambda: [])
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(copy_context().run, ft.get_macro_dashboard) for _ in range(8)]
+        dashboards = [f.result() for f in futures]
+    assert all(d is dashboards[0] for d in dashboards)
+    assert len(calls) == sum(len(specs) for specs in ft.DASHBOARD.values())
+
+
+@respx.mock
+def test_a_failed_release_calendar_does_not_log_the_api_key(monkeypatch, caplog):
+    monkeypatch.setenv("FRED_API_KEY", "secret-key-value")
+    respx.get(f"{ft._FRED_API}/release/dates").mock(return_value=httpx.Response(429))
+    assert ft.get_release_calendar() == []
+    assert "429" in caplog.text and "secret-key-value" not in caplog.text
 
 
 def test_sector_macro_uses_yfinance_sector_names(monkeypatch):

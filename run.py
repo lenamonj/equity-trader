@@ -15,6 +15,9 @@ from equity_trader.exceptions import DataFetchError
 from equity_trader.runner import analyze_ticker
 from equity_trader.schemas import OrchestratorVerdict
 
+# A redirected stdout on Windows defaults to cp1252, which cannot encode the
+# minus signs and arrows that appear in model output.
+sys.stdout.reconfigure(encoding="utf-8")
 console = Console()
 
 _REC_STYLE = {"BUY": "bold green", "HOLD": "bold yellow", "SELL": "bold red"}

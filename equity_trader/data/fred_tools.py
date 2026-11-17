@@ -292,7 +292,9 @@ def get_release_calendar(horizon_days: int = 180) -> list[dict]:
                         for d in r.json()["release_dates"]
                         if today <= date.fromisoformat(d["date"]) <= cutoff]
     except httpx.HTTPError as exc:
-        log.warning("FRED release calendar unavailable: %s", exc)
+        # Not str(exc): it prints the request URL, which carries the API key.
+        status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else ""
+        log.warning("FRED release calendar unavailable: %s %s", type(exc).__name__, status)
     return sorted(out, key=lambda r: r["date"])
 
 
@@ -310,12 +312,13 @@ def get_macro_dashboard() -> dict:
         complete = all(row["value"] is not None
                        for rows in dashboard["groups"].values() for row in rows)
         if not complete:
-            return dashboard  # a failed series is retried on the next call
+            return dashboard  # shared by this run's desks; the next run tries again
         _DASHBOARD_BY_DAY.clear()
         _DASHBOARD_BY_DAY[today] = dashboard
     return _DASHBOARD_BY_DAY[today]
 
 
+@cached_for_run
 def _build_dashboard(today: str) -> dict:
     flat = [spec for specs in DASHBOARD.values() for spec in specs]
     rows = {row["series"]: row for row in _readings(flat)}

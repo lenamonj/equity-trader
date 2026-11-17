@@ -21,6 +21,30 @@ def test_cache_hit_within_run():
     assert calls["n"] == 1
 
 
+def test_callers_arriving_together_share_one_fetch():
+    import threading
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+    from contextvars import copy_context
+
+    reset_run_cache()
+    calls, release = [], threading.Event()
+
+    @cached_for_run
+    def slow(x):
+        calls.append(x)
+        release.wait(2)
+        return x * 2
+
+    # Each desk's tool runs in a thread that carries a copy of the run's context.
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        futures = [pool.submit(copy_context().run, slow, 21) for _ in range(8)]
+        time.sleep(0.2)
+        release.set()
+        assert [f.result() for f in futures] == [42] * 8
+    assert calls == [21]
+
+
 def test_cache_reset_between_runs():
     reset_run_cache()
     calls["n"] = 0
