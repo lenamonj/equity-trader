@@ -174,9 +174,11 @@ All market data is free. No paid feeds.
 
 | Source | Used for |
 |---|---|
-| yfinance | Prices, financial statements, valuation multiples, analyst targets, options, earnings and dividend dates |
-| SEC EDGAR | Filing dates and 8-K item codes. No statement data |
+| SEC EDGAR | Financial statements as filed, with filing dates. 8-K item codes |
+| yfinance | Prices, valuation multiples, analyst targets, options, earnings and dividend dates |
 | FRED | Rates, inflation, unemployment, financial conditions, VIX |
+
+Companies that file no US-GAAP statements with the SEC, such as IFRS filers, fall back to yfinance statements, and the report says so.
 
 <br>
 
@@ -184,7 +186,7 @@ All market data is free. No paid feeds.
 
 ```bash
 uv run pytest -m "not slow"   # unit tests: mocked LLM, mocked data
-uv run pytest -m slow         # integration: live yfinance, EDGAR and FRED
+uv run pytest -m slow         # integration: live yfinance and SEC EDGAR
 uv run pytest                 # everything
 ```
 

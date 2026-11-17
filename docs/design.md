@@ -38,7 +38,7 @@ Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its out
 
 | Desk | Module | Weight | Tools |
 |---|---|---:|---|
-| J.P. Morgan, Fundamental | `jpm_fundamental` | 25 | financial statements, valuation, analyst targets, filing dates |
+| J.P. Morgan, Fundamental | `jpm_fundamental` | 25 | SEC financial statements, valuation multiples, analyst targets, recent 8-Ks |
 | Bridgewater Associates, All-Weather Macro | `bridgewater_macro` | 18 | macro snapshot, FRED series, sector macro, sector ETF history |
 | Goldman Sachs, Technical | `gs_technical` | 12 | price history, technicals, quote |
 | Citadel, Quantitative | `citadel_quant` | 12 | peer set, factor loads, macro snapshot, quote |
@@ -99,10 +99,17 @@ All market data is free. Every tool is memoized per run by `cached_for_run` (`da
 
 | Module | Provides |
 |---|---|
-| `yfinance_tools.py` | price history, quote, financial statements, valuation multiples, analyst targets, technicals, statistical patterns, options chain and IV stats, peer set, factor loads, ETF landscape |
-| `edgar_tools.py` | filing dates for the latest 10-K and 10-Q, item codes for recent 8-Ks. No statement data |
+| `yfinance_tools.py` | price history, quote, valuation multiples, analyst targets, technicals, statistical patterns, options chain and IV stats, peer set, factor loads, ETF landscape |
+| `edgar_tools.py` | financial statements as filed (XBRL company facts), item codes for recent 8-Ks |
 | `fred_tools.py` | macro snapshot (DGS10, DGS2, T10Y2Y, CPI year over year, UNRATE, FEDFUNDS, NFCI, VIX), single series, sector series |
 | `calendar_tools.py` | upcoming earnings and dividend dates inside the horizon |
+
+Financial statements come from the SEC, not from a market data vendor. `get_financial_statements` reads the XBRL company facts for a fixed set of lines (revenue, gross profit, operating income, pretax income, net income, diluted EPS, operating cash flow, capex, buybacks, cash, current assets and liabilities, total assets and liabilities, long-term debt, equity) over the last four fiscal years and five quarters.
+
+- Each period carries its period end, form and first filing date. Values reflect any later restatement.
+- Companies file different XBRL tags for the same line. The candidate tag reported most recently is used, and the output names it.
+- Filings give cash flow items and fourth quarters only as year-to-date figures. A single quarter is the difference between consecutive year-to-date figures. Per-share figures are never derived.
+- A company with no US-GAAP annual statements on EDGAR (IFRS filers, funds) falls back to yfinance statements. The `source` field in the tool output says which was used.
 
 Rules the data layer holds to:
 
@@ -131,7 +138,7 @@ Each run writes one row to the `runs` table in `equity_trader.db` (ticker, times
 
 ## Testing
 
-`uv run pytest -m "not slow"` runs the unit tier with a mocked LLM and mocked data: agents, orchestrator, runner, scoring, persistence, cache, schemas, data tools and the UI rendering functions. `uv run pytest -m slow` hits live yfinance, EDGAR and FRED. CI runs ruff and the unit tier on every push to `main` and on every pull request.
+`uv run pytest -m "not slow"` runs the unit tier with a mocked LLM and mocked data: agents, orchestrator, runner, scoring, persistence, cache, schemas, data tools and the UI rendering functions. `uv run pytest -m slow` hits live yfinance and SEC EDGAR. CI runs ruff and the unit tier on every push to `main` and on every pull request.
 
 ## Not in scope
 
