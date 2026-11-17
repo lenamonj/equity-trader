@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable
 import openai
 
 from equity_trader import orchestrator
-from equity_trader.agents import ALL_AGENTS
+from equity_trader.agents import ALL_AGENTS, ALL_DATA
 from equity_trader.data.cache import reset_run_cache
 from equity_trader.data.yfinance_tools import get_quote
 from equity_trader.gatherer import gather
@@ -46,12 +46,14 @@ def _stamp(v: AgentVerdict, name: str, ticker: str) -> AgentVerdict:
                                 "risks": risks, "error_note": None})
 
 
-async def _run_one(name: str, fn: Callable[[str], Awaitable[AgentVerdict]],
-                    ticker: str) -> AgentVerdict:
+Desk = Callable[[str, dict], Awaitable[AgentVerdict]]
+
+
+async def _run_one(name: str, fn: Desk, ticker: str, gathered: dict) -> AgentVerdict:
     last_rate_limit: Exception | None = None
     for attempt, delay in enumerate(_RATE_LIMIT_BACKOFF + [None]):
         try:
-            return _stamp(await fn(ticker), name, ticker)
+            return _stamp(await fn(ticker, gathered), name, ticker)
         except openai.RateLimitError as e:
             last_rate_limit = e
             if delay is None:
@@ -72,29 +74,28 @@ async def _run_one(name: str, fn: Callable[[str], Awaitable[AgentVerdict]],
 async def analyze_ticker(
     ticker: str,
     on_verdict: Callable[[AgentVerdict], None] | None = None,
-    on_gathered: Callable[[list[dict]], None] | None = None,
+    on_gathered: Callable[[dict], None] | None = None,
 ) -> OrchestratorVerdict:
     """Run the committee: the gatherer, then the desks, then the chair.
 
-    `on_gathered` is called with the gatherer's report once the data is in,
-    and `on_verdict` as each desk reports.
+    `on_gathered` is called with what the gatherer fetched once the data is
+    in, and `on_verdict` as each desk reports.
     """
     reset_run_cache()
     quote = await asyncio.to_thread(get_quote, ticker)
     current_price = quote["last_price"]
 
-    # The desks read from the run cache this fills, so they start with the
-    # data in hand and do not all call the providers at the same moment.
-    report = await asyncio.to_thread(gather, ticker)
+    # Every desk's data is fetched here, in sequence, and handed to the desk
+    # in its request. No desk calls a data provider.
+    gathered = await asyncio.to_thread(gather, ticker, ALL_DATA)
     if on_gathered:
-        on_gathered(report)
+        on_gathered(gathered)
 
     sem = asyncio.Semaphore(_AGENT_CONCURRENCY)
 
-    async def _gated(name: str,
-                     fn: Callable[[str], Awaitable[AgentVerdict]]) -> AgentVerdict:
+    async def _gated(name: str, fn: Desk) -> AgentVerdict:
         async with sem:
-            verdict = await _run_one(name, fn, ticker)
+            verdict = await _run_one(name, fn, ticker, gathered)
         if on_verdict:
             on_verdict(verdict)
         return verdict

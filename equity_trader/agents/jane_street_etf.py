@@ -1,29 +1,28 @@
 from agents import Runner
 
-from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
-from equity_trader.agents.shared_tools import (
-    SHARED_TOOLS,
-    tool_get_index_event_calendar,
-    tool_get_relative_strength,
-    tool_get_sector_rotation,
+from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.shared_data import (
+    SHARED_DATA,
+    index_event_calendar,
+    relative_strength,
+    sector_rotation,
 )
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import market_tools
 from equity_trader.data import yfinance_tools as yft
+from equity_trader.gatherer import brief
 from equity_trader.schemas import AgentVerdict
 
 AGENT_NAME = "jane_street_etf"
 
 
-@desk_tool
-def tool_get_etf_landscape(ticker: str) -> dict:
+def etf_landscape(ticker: str) -> dict:
     """The ticker, its sector ETF and SPY over 1, 3 and 6 months, the ticker's
     beta to each, and recent volume against its 60-day average."""
     return yft.get_etf_landscape(ticker)
 
 
-@desk_tool
-def tool_get_etf_exposure(ticker: str) -> dict:
+def etf_exposure(ticker: str) -> dict:
     """The stock's weight and rank in SPY, QQQ, its sector ETF and the largest
     ETFs in its sector, each fund's assets and volume against average, plus
     the stock's own liquidity: dollar volume, float turnover and price impact."""
@@ -69,7 +68,7 @@ Observe:
   sector ETF (or vice versa), would the trade have made money over
   the last 3-6 months, and is that pair still attractive
 - Index events: quarterly S&P rebalance and options expiration dates
-  inside the horizon, from the calendar tool. You have no Russell or
+  inside the horizon, from the calendar. You have no Russell or
   MSCI review dates; do not cite any
 - Breadth: equal-weight against cap-weight S&P 500, which says whether
   the market is led by a few large names or broadly
@@ -77,19 +76,19 @@ Observe:
   equals forced-selling risk in a drawdown; deep liquidity equals
   relative safety in stress
 
-YOUR TOOLS:
-- tool_get_etf_landscape: returns for the ticker, SPY and the sector ETF,
+YOUR DATA:
+- `etf_landscape`: returns for the ticker, SPY and the sector ETF,
   betas and the volume regime.
-- tool_get_etf_exposure: fund weights, fund size and the stock's liquidity.
+- `etf_exposure`: fund weights, fund size and the stock's liquidity.
   A null weight means outside the fund's top ten, not absent from it.
-- tool_get_relative_strength: excess returns, the ratio's position in its
+- `relative_strength`: excess returns, the ratio's position in its
   one-year range and its z-score.
-- tool_get_sector_rotation: all sectors ranked, and breadth.
-- tool_get_index_event_calendar: rebalance and expiration dates.
+- `sector_rotation`: all sectors ranked, and breadth.
+- `index_event_calendar`: rebalance and expiration dates.
 
 Cite the actual numbers - never say "outperforming the sector" without
 the return difference. A thesis must contain at least 3 specific numeric
-observations from the tools.
+observations from the data.
 
 {shared_rules_block()}
 
@@ -98,18 +97,18 @@ above guides your reasoning; the OUTPUT must be the AgentVerdict schema,
 not a free-form ETF flow report.
 """
 
+# What this desk reads. The gatherer fetches it; `run` hands it over.
+DATA = [*SHARED_DATA, etf_landscape, etf_exposure, relative_strength, sector_rotation,
+        index_event_calendar]
+
 agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
-    tools=[*SHARED_TOOLS, tool_get_etf_landscape, tool_get_etf_exposure,
-           tool_get_relative_strength, tool_get_sector_rotation,
-           tool_get_index_event_calendar],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )
 
 
-async def run(ticker: str) -> AgentVerdict:
-    result = await Runner.run(agent, input=f"Analyze {ticker} for a 3-6 month horizon.",
-                               max_turns=25)
+async def run(ticker: str, gathered: dict[str, dict]) -> AgentVerdict:
+    result = await Runner.run(agent, input=brief(ticker, DATA, gathered))
     return result.final_output

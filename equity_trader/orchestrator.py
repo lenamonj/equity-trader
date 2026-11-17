@@ -67,7 +67,8 @@ Hard rules:
    one to three desks whose verdicts drove your call. Names only, no prose.
 11. Everywhere else - `synthesis`, `key_agreements`, `key_disagreements`,
    `red_flags`, `score_departure_rationale` - refer to a desk by its house
-   name from DESK_NAMES (e.g. 'Goldman Sachs'), never by its `agent` code.
+   name alone (e.g. 'Goldman Sachs'), without its discipline in brackets and
+   never by its `agent` code.
 
 Write a 150-300 word synthesis in `synthesis` that reads like a PM memo -
 direct, evidence-cited, no hedging filler.
@@ -79,7 +80,6 @@ Return an OrchestratorVerdict.
 _agent = build_agent(
     name="orchestrator",
     instructions=_INSTRUCTIONS,
-    tools=[],
     spec=ORCHESTRATOR_MODEL,
     output_type=OrchestratorVerdict,
 )

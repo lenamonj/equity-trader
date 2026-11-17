@@ -8,7 +8,7 @@ from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
 
 @pytest.fixture(autouse=True)
 def _no_gathering(monkeypatch):
-    monkeypatch.setattr(run_mod, "gather", lambda ticker: [])
+    monkeypatch.setattr(run_mod, "gather", lambda ticker, sections: {})
 
 
 def _v(name, rec="BUY", conv=6, err=None):
@@ -23,12 +23,12 @@ async def test_analyze_ticker_calls_all_agents_then_orchestrator(monkeypatch, tm
 
     from equity_trader.agents import AGENT_NAMES
 
-    async def fake_agent_run(t):
+    async def fake_agent_run(t, gathered):
         return _v(fake_agent_run._name)
 
     fake_funcs = []
     for n in AGENT_NAMES:
-        f = AsyncMock(side_effect=lambda t, _n=n: _v(_n))
+        f = AsyncMock(side_effect=lambda t, gathered, _n=n: _v(_n))
         fake_funcs.append((n, f))
     monkeypatch.setattr(run_mod, "ALL_AGENTS", fake_funcs)
 
@@ -59,10 +59,10 @@ async def test_analyze_ticker_survives_one_agent_failure(monkeypatch):
 
     from equity_trader.agents import AGENT_NAMES
 
-    async def good(t):
+    async def good(t, gathered):
         return _v("g")
 
-    async def bad(t):
+    async def bad(t, gathered):
         raise RuntimeError("boom")
 
     fake_funcs = [(n, good if i > 0 else bad) for i, n in enumerate(AGENT_NAMES)]
@@ -91,10 +91,10 @@ async def test_analyze_ticker_survives_one_agent_failure(monkeypatch):
 @pytest.mark.asyncio
 async def test_model_written_error_note_does_not_mark_the_desk_failed():
     # Models fill error_note with data caveats. Only the runner may set it.
-    async def caveated(t):
+    async def caveated(t, gathered):
         return _v("wrong_name", err="Filing contents were unavailable.")
 
-    out = await run_mod._run_one("jpm_fundamental", caveated, "NVDA")
+    out = await run_mod._run_one("jpm_fundamental", caveated, "NVDA", {})
     assert out.error_note is None
     assert out.agent == "jpm_fundamental"
     assert out.risks == ["y", "Filing contents were unavailable."]
@@ -104,7 +104,7 @@ async def test_model_written_error_note_does_not_mark_the_desk_failed():
 async def test_analyze_ticker_reports_each_desk_as_it_finishes(monkeypatch):
     from equity_trader.agents import AGENT_NAMES
 
-    async def good(t):
+    async def good(t, gathered):
         return _v("x")
 
     monkeypatch.setattr(run_mod, "ALL_AGENTS", [(n, good) for n in AGENT_NAMES])
@@ -121,13 +121,17 @@ async def test_analyze_ticker_reports_each_desk_as_it_finishes(monkeypatch):
 async def test_the_gatherer_runs_before_any_desk(monkeypatch):
     order = []
 
-    async def desk(ticker):
+    async def desk(ticker, gathered):
+        assert gathered == fetched
         order.append("desk")
         return _v("jpm_fundamental")
 
-    def gather(ticker):
+    fetched = {"company_snapshot": {"data": {"price": 190.0}, "error": None, "seconds": 0.1}}
+
+    def gather(ticker, sections):
         order.append("gather")
-        return [{"tool": "tool_x", "seconds": 0.1, "error": None}]
+        assert sections is run_mod.ALL_DATA
+        return fetched
 
     monkeypatch.setattr(run_mod, "ALL_AGENTS", [("jpm_fundamental", desk)])
     monkeypatch.setattr(run_mod, "get_quote", lambda t: {"last_price": 190.0})
@@ -137,4 +141,4 @@ async def test_the_gatherer_runs_before_any_desk(monkeypatch):
     reports = []
     await run_mod.analyze_ticker("NVDA", on_gathered=reports.append)
     assert order == ["gather", "desk"]
-    assert reports == [[{"tool": "tool_x", "seconds": 0.1, "error": None}]]
+    assert reports == [fetched]

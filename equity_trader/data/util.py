@@ -4,7 +4,7 @@ import pandas as pd
 
 
 def num(x, digits: int = 4) -> float | None:
-    """A rounded float, or None for missing values, so tool output stays compact."""
+    """A rounded float, or None for missing values, so the data stays compact."""
     if x is None:
         return None
     try:

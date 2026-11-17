@@ -1,50 +1,53 @@
 """The gatherer: fetches everything the desks will read before any desk runs.
 
-It is code, not a model. What to fetch is fixed by the desks' own tool lists,
-so there is nothing for a model to decide. It calls each tool once, one at a
-time, which keeps the load on the data providers low and even. The results
-land in the run cache, and the desks' own tool calls are answered from it.
-A desk therefore never calls a data provider: every tool takes the ticker or
-nothing, so there is no request a model could invent.
+It is code, not a model. What to fetch is fixed by the desks' own data lists,
+so there is nothing for a model to decide. It calls each data function once,
+one at a time, which keeps the load on the data providers low and even. Each
+desk is then handed its sections in its request and answers in one model
+call. A desk has no tools and never calls a data provider.
 """
 import inspect
+import json
 import logging
 import time
-
-from equity_trader import agents as desks
-from equity_trader.agents.base import TOOL_FUNCTIONS
+from collections.abc import Callable
 
 log = logging.getLogger(__name__)
 
 
-def tool_names() -> list[str]:
-    """Every tool the desks hold, shared ones first, each named once."""
-    names = [tool.name for name, _ in desks.ALL_AGENTS
-             for tool in getattr(desks, name).agent.tools]
-    return list(dict.fromkeys(names))
+def gather(ticker: str, sections: list[Callable]) -> dict[str, dict]:
+    """Run each data function in turn.
 
-
-def gather(ticker: str) -> list[dict]:
-    """Run every desk tool in turn.
-
-    Returns one row per tool: its name, how long it took, and the error if it
-    failed. A failure is recorded, not raised: the desk that asks for that
-    tool tries again and reports what it gets.
+    Returns, by section name, its `data` or the `error` that stopped it, and
+    the `seconds` it took. A failure is recorded, not raised: the desk is told
+    that section is unavailable.
     """
-    report = []
-    for name in tool_names():
-        function = TOOL_FUNCTIONS[name]
+    gathered = {}
+    for function in sections:
         takes_ticker = bool(inspect.signature(function).parameters)
         started = time.monotonic()
-        error = None
+        entry = {"data": None, "error": None}
         try:
-            function(*([ticker] if takes_ticker else []))
+            entry["data"] = function(*([ticker] if takes_ticker else []))
         except Exception as exc:
-            error = f"{type(exc).__name__}: {exc}"
-            log.warning("Gatherer: %s failed for %s: %s", name, ticker, error)
-        report.append({"tool": name, "seconds": round(time.monotonic() - started, 1),
-                       "error": error})
-    failed = [row["tool"] for row in report if row["error"]]
-    log.info("Gatherer: %d tools for %s in %.0fs, %d failed %s", len(report), ticker,
-             sum(row["seconds"] for row in report), len(failed), failed or "")
-    return report
+            entry["error"] = f"{type(exc).__name__}: {exc}"
+            log.warning("Gatherer: %s failed for %s: %s", function.__name__, ticker,
+                        entry["error"])
+        entry["seconds"] = round(time.monotonic() - started, 1)
+        gathered[function.__name__] = entry
+    failed = [name for name, entry in gathered.items() if entry["error"]]
+    log.info("Gatherer: %d sections for %s in %.0fs, %d failed %s", len(gathered), ticker,
+             sum(entry["seconds"] for entry in gathered.values()), len(failed), failed or "")
+    return gathered
+
+
+def brief(ticker: str, sections: list[Callable], gathered: dict[str, dict]) -> str:
+    """A desk's request: the task, then each of its sections and what it holds."""
+    parts = [f"Analyze {ticker} for a 3-6 month horizon.", "",
+             "DATA, gathered for this run. This is everything you have."]
+    for function in sections:
+        entry = gathered[function.__name__]
+        body = (f"UNAVAILABLE: {entry['error']}" if entry["error"]
+                else json.dumps(entry["data"], separators=(",", ":"), default=str))
+        parts += ["", f"## {function.__name__}", " ".join(function.__doc__.split()), body]
+    return "\n".join(parts)

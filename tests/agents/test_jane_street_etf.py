@@ -4,6 +4,7 @@ import pytest
 
 from equity_trader.agents import jane_street_etf as mod
 from equity_trader.schemas import AgentVerdict
+from tests.agents import gathered_for
 
 
 @pytest.mark.asyncio
@@ -18,6 +19,6 @@ async def test_jane_street_etf_run_returns_agent_verdict():
     )
     with patch.object(mod, "Runner") as RunnerCls:
         RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": fake})())
-        out = await mod.run("NVDA")
+        out = await mod.run("NVDA", gathered_for(mod))
         assert isinstance(out, AgentVerdict)
         assert out.agent == "jane_street_etf"

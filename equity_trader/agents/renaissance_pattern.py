@@ -1,39 +1,36 @@
 from agents import Runner
 
-from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
-from equity_trader.agents.shared_tools import SHARED_TOOLS
+from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.shared_data import SHARED_DATA
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import pattern_tools
+from equity_trader.gatherer import brief
 from equity_trader.schemas import AgentVerdict
 
 AGENT_NAME = "renaissance_pattern"
 
 
-@desk_tool
-def tool_get_seasonality(ticker: str) -> dict:
+def seasonality(ticker: str) -> dict:
     """Calendar effects over the stock's full history: average return, hit rate
     and t-statistic by month and by weekday, and the turn-of-month effect."""
     return pattern_tools.seasonality(ticker)
 
 
-@desk_tool
-def tool_get_earnings_event_study(ticker: str) -> dict:
+def earnings_event_study(ticker: str) -> dict:
     """How the stock traded around each past earnings report: the five days
     before, the reaction day, and 5, 20 and 60 days after, split by whether the
     company beat or missed estimates."""
     return pattern_tools.earnings_event_study(ticker)
 
 
-@desk_tool
-def tool_get_forward_return_study(ticker: str) -> dict:
+def forward_return_study(ticker: str) -> dict:
     """What followed in the stock's own history: returns over 5 to 126 sessions
     after two-sigma daily shocks, and over 63 and 126 sessions after days that
     looked like today, against the all-days baseline."""
     return pattern_tools.forward_return_study(ticker)
 
 
-@desk_tool
-def tool_get_volatility_and_gaps(ticker: str) -> dict:
+def volatility_and_gaps(ticker: str) -> dict:
     """The volatility regime and its percentile, volatility clustering, return
     autocorrelation at daily, weekly and monthly lags, forward returns by
     volatility regime, and how opening gaps of 2% or more have resolved."""
@@ -72,13 +69,13 @@ Scan:
   historical hit rate, sample size, and average return - and is the
   sample large enough to trust
 
-YOUR TOOLS:
-- tool_get_seasonality: calendar effects with n and t-statistics.
-- tool_get_earnings_event_study: behavior around past reports.
-- tool_get_forward_return_study: outcomes after shocks and after days like
+YOUR DATA:
+- `seasonality`: calendar effects with n and t-statistics.
+- `earnings_event_study`: behavior around past reports.
+- `forward_return_study`: outcomes after shocks and after days like
   today. ALWAYS compare a conditional result with baseline_all_days: a 60%
   hit rate means nothing if the baseline is 67%.
-- tool_get_volatility_and_gaps: regime, persistence and gap behavior.
+- `volatility_and_gaps`: regime, persistence and gap behavior.
 
 Be rigorous about not over-fitting. Forward windows overlap, so judge
 evidence by `episodes`, not by `days`. A pattern with a handful of
@@ -93,17 +90,18 @@ above guides your reasoning; the OUTPUT must be the AgentVerdict schema,
 not a free-form pattern report.
 """
 
+# What this desk reads. The gatherer fetches it; `run` hands it over.
+DATA = [*SHARED_DATA, seasonality, earnings_event_study, forward_return_study,
+        volatility_and_gaps]
+
 agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
-    tools=[*SHARED_TOOLS, tool_get_seasonality, tool_get_earnings_event_study,
-           tool_get_forward_return_study, tool_get_volatility_and_gaps],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )
 
 
-async def run(ticker: str) -> AgentVerdict:
-    result = await Runner.run(
-        agent, input=f"Analyze {ticker} for a 3-6 month horizon.", max_turns=25)
+async def run(ticker: str, gathered: dict[str, dict]) -> AgentVerdict:
+    result = await Runner.run(agent, input=brief(ticker, DATA, gathered))
     return result.final_output

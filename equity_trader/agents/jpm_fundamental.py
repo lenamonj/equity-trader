@@ -2,13 +2,14 @@ import logging
 
 from agents import Runner
 
-from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
-from equity_trader.agents.shared_tools import SHARED_TOOLS, tool_get_estimates
+from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.shared_data import SHARED_DATA, estimates
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import company_tools
 from equity_trader.data import edgar_tools as edg
 from equity_trader.data import yfinance_tools as yft
 from equity_trader.exceptions import DataFetchError
+from equity_trader.gatherer import brief
 from equity_trader.schemas import AgentVerdict
 
 log = logging.getLogger(__name__)
@@ -31,37 +32,32 @@ def get_fundamentals(ticker: str) -> dict:
     return {**statements, "valuation": yft.get_valuation(ticker)}
 
 
-@desk_tool
-def tool_get_fundamentals(ticker: str) -> dict:
+def fundamentals(ticker: str) -> dict:
     """Financial statements as filed with the SEC (five fiscal years, six
     quarters) with margins, growth and coverage ratios computed, a growth and
     trailing-twelve-month summary, and current valuation multiples."""
     return get_fundamentals(ticker)
 
 
-@desk_tool
-def tool_get_earnings_release(ticker: str) -> dict:
+def earnings_release(ticker: str) -> dict:
     """The company's latest earnings release and commentary from its 8-K: the
     opening of each exhibit and its outlook section, where guidance is stated."""
     return edg.get_earnings_release(ticker)
 
 
-@desk_tool
-def tool_get_analyst_view(ticker: str) -> dict:
+def analyst_view(ticker: str) -> dict:
     """Analyst price targets, the buy/hold/sell mix over three months, and every
     upgrade, downgrade and target change in the last 90 days."""
     return company_tools.get_analyst_view(ticker)
 
 
-@desk_tool
-def tool_get_insider_activity(ticker: str) -> dict:
+def insider_activity(ticker: str) -> dict:
     """Open-market insider sales and purchases over six months, the ten most
     recent insider transactions, and the top institutional holders."""
     return company_tools.get_insider_activity(ticker)
 
 
-@desk_tool
-def tool_get_recent_8ks(ticker: str) -> list[dict]:
+def recent_8ks(ticker: str) -> list[dict]:
     """The five most recent 8-K current reports: filing date, named items and
     the text of each filing."""
     return edg.get_recent_8ks(ticker)
@@ -103,8 +99,8 @@ Analyze:
 - Risk assessment: the biggest risks that could permanently impair the
   business model (disruption, regulation, key person dependency)
 
-YOUR TOOLS:
-- tool_get_fundamentals: statements as filed with the SEC. Every period is
+YOUR DATA:
+- `fundamentals`: statements as filed with the SEC. Every period is
   labelled (for example 'Q2 FY2027') with its period end, form and filing
   date. quarterly[0] is the latest quarter. Margins, growth rates and
   coverage are already computed in `ratios`, and `summary` has 3 and 5 year
@@ -112,14 +108,14 @@ YOUR TOOLS:
   recompute. A null line item means the company does not report it; do not
   estimate it. The `source` field names where the statements came from;
   cite it.
-- tool_get_earnings_release: management's own words on the latest quarter
+- `earnings_release`: management's own words on the latest quarter
   and its outlook. This is the source for guidance.
-- tool_get_estimates: consensus, revisions and the surprise record. Compare
+- `estimates`: consensus, revisions and the surprise record. Compare
   guidance with consensus.
-- tool_get_analyst_view: targets and recent rating actions. A cluster of
+- `analyst_view`: targets and recent rating actions. A cluster of
   downgrades or target cuts on one date marks an event; find it in the 8-Ks.
-- tool_get_insider_activity: insider selling and buying, and top holders.
-- tool_get_recent_8ks: the company's five most recent current reports, with
+- `insider_activity`: insider selling and buying, and top holders.
+- `recent_8ks`: the company's five most recent current reports, with
   the text of each filing. Read every one. These are the events the
   statements do not show yet: executive or director departures and
   appointments, guidance changes, acquisitions and disposals, new debt,
@@ -138,18 +134,18 @@ above guides your reasoning; the OUTPUT must be the AgentVerdict schema,
 not a free-form research note.
 """
 
+# What this desk reads. The gatherer fetches it; `run` hands it over.
+DATA = [*SHARED_DATA, fundamentals, earnings_release, estimates, analyst_view,
+        insider_activity, recent_8ks]
+
 agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
-    tools=[*SHARED_TOOLS, tool_get_fundamentals, tool_get_earnings_release,
-           tool_get_estimates, tool_get_analyst_view, tool_get_insider_activity,
-           tool_get_recent_8ks],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )
 
 
-async def run(ticker: str) -> AgentVerdict:
-    result = await Runner.run(
-        agent, input=f"Analyze {ticker} for a 3-6 month horizon.", max_turns=25)
+async def run(ticker: str, gathered: dict[str, dict]) -> AgentVerdict:
+    result = await Runner.run(agent, input=brief(ticker, DATA, gathered))
     return result.final_output

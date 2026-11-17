@@ -21,3 +21,11 @@ ALL_AGENTS = [
     ("renaissance_pattern", renaissance_pattern.run),
     ("two_sigma_backtest",  two_sigma_backtest.run),
 ]
+
+# Every section any desk reads, shared context first, each once. This is what
+# the gatherer fetches for a run.
+ALL_DATA = list(dict.fromkeys(
+    section for module in (jpm_fundamental, bridgewater_macro, gs_technical, citadel_quant,
+                           jane_street_etf, de_shaw_options, renaissance_pattern,
+                           two_sigma_backtest)
+    for section in module.DATA))

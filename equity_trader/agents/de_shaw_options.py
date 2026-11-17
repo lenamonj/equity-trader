@@ -1,16 +1,16 @@
 from agents import Runner
 
-from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
-from equity_trader.agents.shared_tools import SHARED_TOOLS, tool_get_index_event_calendar
+from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.shared_data import SHARED_DATA, index_event_calendar
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import options_tools
+from equity_trader.gatherer import brief
 from equity_trader.schemas import AgentVerdict
 
 AGENT_NAME = "de_shaw_options"
 
 
-@desk_tool
-def tool_get_options_surface(ticker: str) -> dict:
+def options_surface(ticker: str) -> dict:
     """Up to six expiries from one week to one year. For each: at-the-money
     implied volatility, the implied move, skew between the 90% put and the 110%
     call, put/call ratios by volume and open interest, the largest open-interest
@@ -18,23 +18,20 @@ def tool_get_options_surface(ticker: str) -> dict:
     return options_tools.options_surface(ticker)
 
 
-@desk_tool
-def tool_get_volatility_premium(ticker: str) -> dict:
+def volatility_premium(ticker: str) -> dict:
     """Implied volatility at one and three months against realized volatility
     over 20, 60 and 120 days, and the implied move over the next earnings
     report against the average move on past reports."""
     return options_tools.volatility_premium(ticker)
 
 
-@desk_tool
-def tool_get_options_chain(ticker: str) -> dict:
+def options_chain(ticker: str) -> dict:
     """Prices, implied volatility, open interest and volume for the expiry
     inside the 3-6 month horizon, for strikes within 20% of the stock price."""
     return options_tools.options_chain_near_money(ticker)
 
 
-@desk_tool
-def tool_get_market_volatility() -> dict:
+def market_volatility() -> dict:
     """VIX at 9 days, 30 days and 3 months, the SKEW index and the MOVE index:
     level, one-month change and one-year percentile, and the VIX term structure."""
     return options_tools.market_volatility()
@@ -77,13 +74,13 @@ Architect:
 - Market backdrop: is this stock's volatility its own story or part of a
   market-wide volatility regime
 
-YOUR TOOLS:
-- tool_get_options_surface: the term structure, skew and positioning.
-- tool_get_volatility_premium: implied against realized, and earnings.
-- tool_get_market_volatility: index volatility and its term structure.
-- tool_get_options_chain: prices near the money for the horizon expiry,
+YOUR DATA:
+- `options_surface`: the term structure, skew and positioning.
+- `volatility_premium`: implied against realized, and earnings.
+- `market_volatility`: index volatility and its term structure.
+- `options_chain`: prices near the money for the horizon expiry,
   for sizing a structure.
-- tool_get_index_event_calendar: options expiration dates in the horizon.
+- `index_event_calendar`: options expiration dates in the horizon.
 
 You have no option Greeks and no history of implied volatility, so do not
 quote a delta, a gamma or an IV rank. Quotes are delayed; treat a single
@@ -99,18 +96,18 @@ above guides your reasoning; the OUTPUT must be the AgentVerdict schema,
 not a free-form options memo.
 """
 
+# What this desk reads. The gatherer fetches it; `run` hands it over.
+DATA = [*SHARED_DATA, options_surface, volatility_premium, market_volatility, options_chain,
+        index_event_calendar]
+
 agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
-    tools=[*SHARED_TOOLS, tool_get_options_surface, tool_get_volatility_premium,
-           tool_get_market_volatility, tool_get_options_chain,
-           tool_get_index_event_calendar],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )
 
 
-async def run(ticker: str) -> AgentVerdict:
-    result = await Runner.run(
-        agent, input=f"Analyze {ticker} for a 3-6 month horizon.", max_turns=25)
+async def run(ticker: str, gathered: dict[str, dict]) -> AgentVerdict:
+    result = await Runner.run(agent, input=brief(ticker, DATA, gathered))
     return result.final_output

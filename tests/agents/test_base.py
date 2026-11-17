@@ -34,7 +34,6 @@ def test_build_agent_constructs(monkeypatch):
     a = build_agent(
         name="test_agent",
         instructions="You are a test.",
-        tools=[],
         spec=ModelSpec("groq", "llama-3.3-70b-versatile"),
         output_type=dict,
     )
@@ -43,7 +42,7 @@ def test_build_agent_constructs(monkeypatch):
 
 
 def test_build_agent_uses_responses_api_for_openai():
-    a = build_agent(name="t", instructions="x", tools=[],
+    a = build_agent(name="t", instructions="x",
                     spec=ModelSpec("openai", "gpt-6-luna"), output_type=dict)
     assert isinstance(a.model, OpenAIResponsesModel)
 
@@ -64,6 +63,7 @@ def test_shared_rules_block_enforces_exact_recommendation_literals():
     assert "SOLD" in text  # explicit anti-example
 
 
-def test_shared_rules_block_caps_tool_calls():
+def test_shared_rules_block_says_the_data_is_all_there_is():
     text = shared_rules_block()
-    assert "AT MOST ONCE" in text
+    assert "You have no tools and nothing else to fetch" in text
+    assert "UNAVAILABLE" in text

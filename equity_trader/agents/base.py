@@ -1,13 +1,10 @@
 import os
-from collections.abc import Callable
 
 from agents import (
     Agent,
     AgentOutputSchema,
-    FunctionTool,
     OpenAIChatCompletionsModel,
     OpenAIResponsesModel,
-    function_tool,
 )
 from openai import AsyncOpenAI
 
@@ -26,17 +23,6 @@ _ENV_KEYS = {
 }
 
 
-# Tool name -> the plain function behind it. The gatherer calls these
-# directly to fetch a run's data before any desk starts.
-TOOL_FUNCTIONS: dict[str, Callable] = {}
-
-
-def desk_tool(function: Callable) -> FunctionTool:
-    """A function tool for a desk that the gatherer can also call."""
-    TOOL_FUNCTIONS[function.__name__] = function
-    return function_tool(function)
-
-
 def _client_for(spec: ModelSpec) -> AsyncOpenAI:
     env_key = _ENV_KEYS[spec.provider]
     api_key = os.environ.get(env_key)
@@ -47,18 +33,18 @@ def _client_for(spec: ModelSpec) -> AsyncOpenAI:
     return AsyncOpenAI(api_key=api_key, base_url=_BASE_URLS[spec.provider])
 
 
-def build_agent(*, name: str, instructions: str, tools: list,
-                spec: ModelSpec, output_type):
+def build_agent(*, name: str, instructions: str, spec: ModelSpec, output_type):
+    """A desk: a model with instructions and a verdict to return. It has no
+    tools; its data arrives in the request."""
     client = _client_for(spec)
-    # OpenAI's current models only take function tools on the Responses API.
-    # The other providers expose the Chat Completions API only.
+    # OpenAI is called on the Responses API. The other providers expose the
+    # Chat Completions API only.
     model_cls = (OpenAIResponsesModel if spec.provider == "openai"
                  else OpenAIChatCompletionsModel)
     model = model_cls(model=spec.model, openai_client=client)
     return Agent(
         name=name,
         instructions=instructions,
-        tools=tools,
         model=model,
         output_type=AgentOutputSchema(output_type, strict_json_schema=False),
     )
@@ -84,26 +70,25 @@ def shared_rules_block() -> str:
         "6. Output MUST conform to the AgentVerdict schema. No prose outside it.\n"
         "7. If you genuinely lack data, return HOLD with conviction 3 and explain\n"
         "   in risks.\n"
-        "8. Call each tool AT MOST ONCE. Do not re-call a tool to verify it -\n"
-        "   one call gives you the data, then synthesize.\n"
+        "8. Everything you have is in the DATA block of the request, one\n"
+        "   section per heading. You have no tools and nothing else to fetch.\n"
         "9. Leave `error_note` null. It is reserved for system failures. Missing\n"
         "   or stale data belongs in `risks`.\n"
-        "10. Call tool_get_company_snapshot FIRST. It gives today's date and the\n"
-        "   current price. Never assume either. Anchor any price target to that\n"
-        "   price.\n"
-        "11. Tool outputs carry their own dates and sample sizes; cite them. A\n"
-        "   null value means the data is unavailable: say so in `risks` rather\n"
-        "   than estimating it. Do not do arithmetic a tool has already done.\n"
+        "10. `company_snapshot` gives today's date and the current price.\n"
+        "   Never assume either. Anchor any price target to that price.\n"
+        "11. The data carries its own dates and sample sizes; cite them. A null\n"
+        "   value, or a section marked UNAVAILABLE, means the data could not be\n"
+        "   fetched: say so in `risks` rather than estimating it. Do not redo\n"
+        "   arithmetic the data already contains.\n"
         "\n"
-        "CONTEXT TOOLS EVERY DESK HAS:\n"
-        "- tool_get_company_snapshot(ticker): date, price, sector, 52-week\n"
-        "  range, next earnings date, short interest, ownership. Required.\n"
-        "- tool_get_macro_dashboard(): rates, inflation, growth, labor, credit,\n"
-        "  liquidity and market readings with their direction, plus scheduled\n"
-        "  data releases. Call it once so your view sits in the macro backdrop.\n"
-        "- tool_get_sector_macro(ticker): series that drive this sector.\n"
-        "All of your data was gathered before you started. Choose what bears on\n"
-        "your call from what the tools return; there is nothing else to fetch.\n"
+        "CONTEXT EVERY DESK IS GIVEN:\n"
+        "- `company_snapshot`: date, price, sector, 52-week range, next\n"
+        "  earnings date, short interest, ownership.\n"
+        "- `macro_dashboard`: rates, inflation, growth, labor, credit, liquidity\n"
+        "  and market readings with their direction, plus scheduled data\n"
+        "  releases. Set your view in this backdrop.\n"
+        "- `sector_macro`: series that drive this sector.\n"
+        "Choose what bears on your call from what you are given.\n"
         "Context informs your call. Your verdict must still rest on your own\n"
         "desk's discipline.\n"
     )

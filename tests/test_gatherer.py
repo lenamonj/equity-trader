@@ -1,42 +1,45 @@
-import inspect
+import json
 
 from equity_trader import gatherer
-from equity_trader.agents.base import TOOL_FUNCTIONS
 
 
-def test_gatherer_knows_every_tool_the_desks_hold():
-    names = gatherer.tool_names()
-    assert len(names) == len(set(names)) == 33
-    assert set(names) == set(TOOL_FUNCTIONS)
-    assert names[0] == "tool_get_company_snapshot"  # shared context comes first
+def company_snapshot(ticker: str) -> dict:
+    """Today's date and
+    the current price."""
+    return {"ticker": ticker, "price": 153.38, "as_of": None}
 
 
-def test_no_desk_tool_takes_an_argument_a_model_chooses():
-    # A tool with a free argument could not be gathered ahead of time, and a
-    # desk calling it would reach a data provider in the middle of a run.
-    for name in gatherer.tool_names():
-        assert list(inspect.signature(TOOL_FUNCTIONS[name]).parameters) in ([], ["ticker"]), name
+def macro_dashboard() -> dict:
+    """Rates and inflation."""
+    return {"rates": [{"series": "DGS10", "value": 5.15}]}
 
 
-def test_gather_calls_each_tool_once_in_order_and_records_failures(monkeypatch):
-    calls = []
+def options_surface(ticker: str) -> dict:
+    """Implied volatility by expiry."""
+    raise ValueError("Yahoo refused")
 
-    def tool_a(ticker: str):
-        calls.append(("a", ticker))
 
-    def tool_b():
-        calls.append(("b",))
+SECTIONS = [company_snapshot, macro_dashboard, options_surface]
 
-    def tool_c(ticker: str):
-        calls.append(("c", ticker))
-        raise ValueError("Yahoo refused")
 
-    fakes = {"tool_a": tool_a, "tool_b": tool_b, "tool_c": tool_c}
-    monkeypatch.setattr(gatherer, "TOOL_FUNCTIONS", fakes)
-    monkeypatch.setattr(gatherer, "tool_names", lambda: list(fakes))
+def test_gather_runs_each_section_once_in_order_and_records_failures():
+    gathered = gatherer.gather("NVDA", SECTIONS)
+    assert list(gathered) == ["company_snapshot", "macro_dashboard", "options_surface"]
+    assert gathered["company_snapshot"]["data"] == {"ticker": "NVDA", "price": 153.38,
+                                                    "as_of": None}
+    assert gathered["macro_dashboard"]["error"] is None
+    assert gathered["options_surface"]["data"] is None
+    assert gathered["options_surface"]["error"] == "ValueError: Yahoo refused"
 
-    report = gatherer.gather("NVDA")
 
-    assert calls == [("a", "NVDA"), ("b",), ("c", "NVDA")]
-    assert [(row["tool"], row["error"]) for row in report] == [
-        ("tool_a", None), ("tool_b", None), ("tool_c", "ValueError: Yahoo refused")]
+def test_brief_hands_a_desk_its_sections_and_nothing_else():
+    gathered = gatherer.gather("NVDA", SECTIONS)
+    text = gatherer.brief("NVDA", [company_snapshot, options_surface], gathered)
+    lines = text.split("\n")
+    assert lines[0] == "Analyze NVDA for a 3-6 month horizon."
+    at = lines.index("## company_snapshot")
+    assert lines[at + 1] == "Today's date and the current price."
+    assert json.loads(lines[at + 2]) == {"ticker": "NVDA", "price": 153.38, "as_of": None}
+    assert lines[-3:] == ["## options_surface", "Implied volatility by expiry.",
+                          "UNAVAILABLE: ValueError: Yahoo refused"]
+    assert "macro_dashboard" not in text

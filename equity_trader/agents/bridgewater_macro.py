@@ -1,30 +1,28 @@
 from agents import Runner
 
-from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
-from equity_trader.agents.shared_tools import SHARED_TOOLS, tool_get_sector_rotation
+from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.shared_data import SHARED_DATA, sector_rotation
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import market_tools
+from equity_trader.gatherer import brief
 from equity_trader.schemas import AgentVerdict
 
 AGENT_NAME = "bridgewater_macro"
 
 
-@desk_tool
-def tool_get_macro_sensitivity(ticker: str) -> dict:
+def macro_sensitivity(ticker: str) -> dict:
     """How the stock has moved week by week with the S&P 500, the 10-year
     yield, high yield spreads, the dollar, oil and the VIX over three years."""
     return market_tools.macro_sensitivity(ticker)
 
 
-@desk_tool
-def tool_get_stress_history(ticker: str) -> dict:
+def stress_history(ticker: str) -> dict:
     """The stock's return against the market in the 2008, late 2018, 2020 and
     2022 drawdowns, and the five worst declines in its own history."""
     return market_tools.stress_history(ticker)
 
 
-@desk_tool
-def tool_get_cross_asset_board() -> dict:
+def cross_asset_board() -> dict:
     """One, three and six month returns for stocks, small caps, Treasuries,
     high yield, gold, copper, oil and the dollar."""
     return market_tools.cross_asset_board()
@@ -61,18 +59,18 @@ Assess:
   is broken (sector ETF support, macro regime shift signal)
 - Black swan exposure: what unhedged tail risk does owning this carry
 
-YOUR TOOLS:
-- tool_get_macro_dashboard is the core of your work. Classify the regime
+YOUR DATA:
+- `macro_dashboard` is the core of your work. Classify the regime
   from the direction of each reading (value against three_months_ago and
   year_ago), not from its level alone, and use pctile to say how extreme a
   reading is. Its upcoming_releases are the scheduled macro events inside
   the horizon.
-- tool_get_sector_macro: the series that drive this ticker's sector.
-- tool_get_macro_sensitivity: which macro factors this stock has actually
+- `sector_macro`: the series that drive this ticker's sector.
+- `macro_sensitivity`: which macro factors this stock has actually
   moved with. Use it for correlation risk instead of assuming.
-- tool_get_stress_history: what the stock did in past stress. Use it for
+- `stress_history`: what the stock did in past stress. Use it for
   drawdown potential instead of estimating.
-- tool_get_cross_asset_board and tool_get_sector_rotation: what other
+- `cross_asset_board` and `sector_rotation`: what other
   assets and sectors are saying about the regime right now.
 
 Cite specific data points and dates - never paraphrase.
@@ -84,17 +82,17 @@ above guides your reasoning; the OUTPUT must be the AgentVerdict schema,
 not a free-form risk memo.
 """
 
+# What this desk reads. The gatherer fetches it; `run` hands it over.
+DATA = [*SHARED_DATA, macro_sensitivity, stress_history, cross_asset_board, sector_rotation]
+
 agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
-    tools=[*SHARED_TOOLS, tool_get_macro_sensitivity, tool_get_stress_history,
-           tool_get_cross_asset_board, tool_get_sector_rotation],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )
 
 
-async def run(ticker: str) -> AgentVerdict:
-    result = await Runner.run(
-        agent, input=f"Analyze {ticker} for a 3-6 month horizon.", max_turns=25)
+async def run(ticker: str, gathered: dict[str, dict]) -> AgentVerdict:
+    result = await Runner.run(agent, input=brief(ticker, DATA, gathered))
     return result.final_output

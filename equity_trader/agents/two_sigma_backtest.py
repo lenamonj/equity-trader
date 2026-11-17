@@ -4,12 +4,13 @@ import numpy as np
 import pandas as pd
 from agents import Runner
 
-from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
-from equity_trader.agents.shared_tools import SHARED_TOOLS
+from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.shared_data import SHARED_DATA
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import yfinance_tools as yft
 from equity_trader.data.technical_tools import YEAR, history, rsi
 from equity_trader.data.util import num
+from equity_trader.gatherer import brief
 from equity_trader.schemas import AgentVerdict
 
 log = logging.getLogger(__name__)
@@ -137,8 +138,7 @@ def backtest_rules(ticker: str) -> dict:
     }
 
 
-@desk_tool
-def tool_backtest_rules(ticker: str) -> dict:
+def rule_backtest(ticker: str) -> dict:
     """Eleven long and short trading rules run over the stock's full history at
     20, 63 and 126 session holds: trades, hit rate, edge over the baseline after
     costs, t-statistic, and the edge in each half of the history. Also the same
@@ -191,7 +191,7 @@ Backtest:
   the sector ETF. BUY for a long rule, SELL for a short rule. Otherwise
   return HOLD with conviction 3.
 
-Use tool_backtest_rules ONCE. Cite the specific numbers - never
+Your evidence is `rule_backtest`. Cite the specific numbers - never
 paraphrase.
 
 REGARDLESS of the recommendation, your thesis bullets MUST report the
@@ -210,16 +210,17 @@ above guides your reasoning; the OUTPUT must be the AgentVerdict schema,
 not a free-form backtest report.
 """
 
+# What this desk reads. The gatherer fetches it; `run` hands it over.
+DATA = [*SHARED_DATA, rule_backtest]
+
 agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
-    tools=[*SHARED_TOOLS, tool_backtest_rules],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )
 
 
-async def run(ticker: str) -> AgentVerdict:
-    result = await Runner.run(
-        agent, input=f"Analyze {ticker} for a 3-6 month horizon.", max_turns=25)
+async def run(ticker: str, gathered: dict[str, dict]) -> AgentVerdict:
+    result = await Runner.run(agent, input=brief(ticker, DATA, gathered))
     return result.final_output
