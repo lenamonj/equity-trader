@@ -277,7 +277,7 @@ def compute_factor_loads(ticker: str, peers: list[str]) -> dict:
 
 # Yahoo / yfinance sector strings -> primary SPDR sector ETF symbol. Used by
 # the Jane Street ETF Observer agent to anchor relative-value comparisons.
-_SECTOR_ETF = {
+SECTOR_ETF = {
     "Technology":              "XLK",
     "Financial Services":      "XLF",
     "Healthcare":              "XLV",
@@ -331,7 +331,7 @@ def get_etf_landscape(ticker: str) -> dict:
     """
     info = get_info(ticker)
     sector = info.get("sector")
-    sector_etf = _SECTOR_ETF.get(sector)
+    sector_etf = SECTOR_ETF.get(sector)
 
     ticker_df = get_price_history(ticker, period="1y", interval="1d")
     try:
