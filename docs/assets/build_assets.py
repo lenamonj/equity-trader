@@ -189,7 +189,7 @@ def architecture(f: dict, t: dict) -> str:
         # Ticker
         rect(56, cy - 52, 150, 104, t["card"], t["border"]),
         f["mono"].draw("TICKER", 131, cy - 22, 9.5, t["ink4"], "middle", tracking=0.18),
-        f["display"].draw("AVGO", 131, cy + 22, 34, t["brand"], "middle"),
+        f["display"].draw("NVDA", 131, cy + 22, 34, t["brand"], "middle"),
         # Fan-out spine
         line(206, cy, 250, cy, t["gold"]),
         line(250, row_y + row_h / 2, 250, last_cy, t["gold"]),
