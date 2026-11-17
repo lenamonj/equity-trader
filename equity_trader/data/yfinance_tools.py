@@ -7,7 +7,7 @@ import pandas as pd
 import yfinance as yf
 
 from equity_trader.data.cache import cached_for_run
-from equity_trader.exceptions import TickerNotFoundError
+from equity_trader.exceptions import DataFetchError, TickerNotFoundError
 
 log = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ _LAST_CALL = {"t": 0.0}
 _MIN_INTERVAL = 0.1  # seconds
 
 
-def _throttle() -> None:
+def throttle() -> None:
     elapsed = time.monotonic() - _LAST_CALL["t"]
     if elapsed < _MIN_INTERVAL:
         time.sleep(_MIN_INTERVAL - elapsed)
@@ -30,7 +30,7 @@ def as_of(df: pd.DataFrame) -> str:
 @cached_for_run
 def get_price_history(ticker: str, period: str = "2y",
                       interval: str = "1d") -> pd.DataFrame:
-    _throttle()
+    throttle()
     df = yf.Ticker(ticker).history(period=period, interval=interval)
     if df.empty:
         raise TickerNotFoundError(ticker)
@@ -38,8 +38,35 @@ def get_price_history(ticker: str, period: str = "2y",
 
 
 @cached_for_run
+def get_info(ticker: str) -> dict:
+    """Yahoo's company profile and summary statistics, fetched once per run."""
+    throttle()
+    return yf.Ticker(ticker).info or {}
+
+
+@cached_for_run
+def get_closes(symbols: list[str], period: str = "1y") -> pd.DataFrame:
+    """Daily closes for several symbols in one request, one column per symbol."""
+    throttle()
+    data = yf.download(symbols, period=period, progress=False, auto_adjust=True)
+    if data.empty:
+        raise DataFetchError(f"No price data for {symbols}")
+    return data["Close"]
+
+
+@cached_for_run
+def get_earnings_dates(ticker: str) -> pd.DataFrame:
+    """Past and scheduled earnings dates with estimate, reported EPS and surprise."""
+    throttle()
+    frame = yf.Ticker(ticker).get_earnings_dates(limit=28)
+    if frame is None:
+        return pd.DataFrame(columns=["EPS Estimate", "Reported EPS", "Surprise(%)"])
+    return frame
+
+
+@cached_for_run
 def get_quote(ticker: str) -> dict:
-    _throttle()
+    throttle()
     info = yf.Ticker(ticker).fast_info
     try:
         return {
@@ -55,7 +82,7 @@ def get_quote(ticker: str) -> dict:
 
 @cached_for_run
 def get_fundamentals(ticker: str) -> dict:
-    _throttle()
+    throttle()
     t = yf.Ticker(ticker)
     return {
         "income_stmt": t.income_stmt.to_dict() if t.income_stmt is not None else {},
@@ -69,8 +96,7 @@ def get_fundamentals(ticker: str) -> dict:
 
 @cached_for_run
 def get_valuation(ticker: str) -> dict:
-    _throttle()
-    info = yf.Ticker(ticker).info or {}
+    info = get_info(ticker)
     return {
         "trailing_pe": info.get("trailingPE"),
         "forward_pe": info.get("forwardPE"),
@@ -84,8 +110,7 @@ def get_valuation(ticker: str) -> dict:
 
 @cached_for_run
 def get_analyst_targets(ticker: str) -> dict:
-    _throttle()
-    info = yf.Ticker(ticker).info or {}
+    info = get_info(ticker)
     return {
         "mean_target": info.get("targetMeanPrice"),
         "high_target": info.get("targetHighPrice"),
@@ -150,8 +175,7 @@ _SECTOR_PEERS = {
 
 @cached_for_run
 def get_peer_set(ticker: str) -> list[str]:
-    _throttle()
-    info = yf.Ticker(ticker).info or {}
+    info = get_info(ticker)
     key = (info.get("sector"), info.get("industry"))
     peers = _SECTOR_PEERS.get(key, [])
     return [p for p in peers if p.upper() != ticker.upper()]
@@ -174,7 +198,7 @@ def _horizon_expiry(expiries: list[str], today: date) -> str:
 
 @cached_for_run
 def get_options_chain(ticker: str, expiry: str | None = None) -> dict:
-    _throttle()
+    throttle()
     t = yf.Ticker(ticker)
     expiries = list(t.options or [])
     if not expiries:
@@ -305,8 +329,7 @@ def get_etf_landscape(ticker: str) -> dict:
       - beta_to_sector: 1y daily-return beta vs sector ETF
       - recent_volume_vs_60d_avg: trailing-5d avg volume / trailing-60d avg
     """
-    _throttle()
-    info = yf.Ticker(ticker).info or {}
+    info = get_info(ticker)
     sector = info.get("sector")
     sector_etf = _SECTOR_ETF.get(sector)
 

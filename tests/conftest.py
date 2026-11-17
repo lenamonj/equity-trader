@@ -2,6 +2,8 @@ import os
 
 import pytest
 
+from equity_trader.data.cache import reset_run_cache
+
 # Set env vars at module level so they are present when agent modules are
 # imported during collection (build_agent runs at module import time).
 _TEST_ENV = {
@@ -20,3 +22,8 @@ for _k, _v in _TEST_ENV.items():
 def _set_test_env(monkeypatch):
     for k, v in _TEST_ENV.items():
         monkeypatch.setenv(k, v)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_run_cache():
+    reset_run_cache()

@@ -32,6 +32,20 @@ def _coerce_dates(value) -> Iterable[date]:
 
 
 @cached_for_run
+def _calendar(ticker: str) -> dict:
+    try:
+        return yf.Ticker(ticker).calendar or {}
+    except Exception as exc:
+        log.warning("Calendar unavailable for %s: %s", ticker, exc)
+        return {}
+
+
+def next_earnings_date(ticker: str, today: date) -> str | None:
+    upcoming = [d for d in _coerce_dates(_calendar(ticker).get("Earnings Date")) if d >= today]
+    return min(upcoming).isoformat() if upcoming else None
+
+
+@cached_for_run
 def get_real_catalysts(ticker: str, today: date,
                         horizon_days: int = 180) -> list[dict]:
     """Return events whose date is known and falls within the horizon.
@@ -42,11 +56,7 @@ def get_real_catalysts(ticker: str, today: date,
     macro events become relevant downstream.
     """
     out: list[dict] = []
-    try:
-        cal = yf.Ticker(ticker).calendar or {}
-    except Exception as exc:
-        log.warning("Catalyst calendar unavailable for %s: %s", ticker, exc)
-        return out
+    cal = _calendar(ticker)
 
     for ed in _coerce_dates(cal.get("Earnings Date")):
         if _within(ed, today, horizon_days):
