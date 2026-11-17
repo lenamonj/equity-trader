@@ -40,8 +40,8 @@ def tool_get_analyst_targets(ticker: str) -> dict:
 
 
 @function_tool
-def tool_get_recent_8k_summaries(ticker: str, n: int = 5) -> list[dict]:
-    return edg.get_recent_8k_summaries(ticker, n)
+def tool_get_recent_8ks(ticker: str) -> list[dict]:
+    return edg.get_recent_8ks(ticker)
 
 
 INSTRUCTIONS = f"""You are a senior equity research analyst at JPMorgan who
@@ -80,8 +80,16 @@ The fundamentals tool returns the statements as filed with the SEC: the last
 four fiscal years and the last five quarters, each with its period end, form
 and filing date, plus current valuation multiples from market data. A null
 line item means the company does not report it; do not estimate it. The
-`source` field names where the statements came from; cite it. The 8-K tool
-returns filing dates and item codes for recent events, not filing contents.
+`source` field names where the statements came from; cite it.
+
+The 8-K tool returns the company's five most recent current reports: filing
+date, named items and the text of the filing. Read every one. These are the
+events the statements do not show yet: executive or director departures and
+appointments, guidance changes, acquisitions and disposals, new debt,
+impairments, restatements, auditor changes. Any such event MUST appear in
+your thesis or your risks with its filing date, and must be weighed in your
+recommendation and conviction. A routine earnings release needs no mention.
+
 Cite specific numbers and the period they belong to - never paraphrase from
 memory.
 
@@ -96,7 +104,7 @@ agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
     tools=[tool_get_fundamentals, tool_get_analyst_targets,
-           tool_get_recent_8k_summaries],
+           tool_get_recent_8ks],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
 )

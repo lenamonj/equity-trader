@@ -22,7 +22,7 @@ def test_ticker_to_cik():
 
 
 @respx.mock
-def test_get_recent_8k_summaries():
+def test_recent_8ks_carry_named_items_and_text():
     respx.get("https://www.sec.gov/files/company_tickers.json").mock(
         return_value=httpx.Response(200, json=_TICKERS_JSON)
     )
@@ -33,13 +33,27 @@ def test_get_recent_8k_summaries():
                 "filingDate": ["2026-05-01", "2026-04-15", "2026-03-10"],
                 "primaryDocument": ["a.htm", "b.htm", "c.htm"],
                 "accessionNumber": ["1-1", "2-2", "3-3"],
-                "items": ["2.02", "", "8.01"],
+                "items": ["5.02,9.01", "", "8.01"],
             }}
         })
     )
-    out = et.get_recent_8k_summaries("AAPL", n=2)
-    assert len(out) == 2
-    assert out[0]["form"] == "8-K"
+    respx.get("https://www.sec.gov/Archives/edgar/data/320193/11/a.htm").mock(
+        return_value=httpx.Response(200, text=(
+            "<html><body><p>FORM 8-K cover page</p>"
+            "<p>Item&nbsp;5.02. Departure of Directors or Certain Officers.</p>"
+            "<p>The Board accepted the resignation of the   Chief Executive Officer.</p>"
+            "<p>SIGNATURE</p><p>By: /s/ Someone</p></body></html>")))
+    respx.get("https://www.sec.gov/Archives/edgar/data/320193/33/c.htm").mock(
+        return_value=httpx.Response(404))
+    reset_run_cache()
+    out = et.get_recent_8ks("AAPL", n=2)
+    assert [f["filing_date"] for f in out] == ["2026-05-01", "2026-03-10"]
+    assert out[0]["items"] == ["5.02 Departure or appointment of directors or officers",
+                               "9.01 Financial statements and exhibits"]
+    assert out[0]["text"] == ("Item 5.02. Departure of Directors or Certain Officers. The Board "
+                              "accepted the resignation of the Chief Executive Officer.")
+    assert out[1]["items"] == ["8.01 Other events"]
+    assert out[1]["text"] is None  # a filing whose text cannot be fetched is still listed
 
 
 def _fact(val, end, form, filed, start=None):

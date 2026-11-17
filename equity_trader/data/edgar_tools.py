@@ -1,4 +1,7 @@
+import html
+import logging
 import os
+import re
 import time
 from datetime import date
 
@@ -6,6 +9,8 @@ import httpx
 
 from equity_trader.data.cache import cached_for_run
 from equity_trader.exceptions import DataFetchError, TickerNotFoundError
+
+log = logging.getLogger(__name__)
 
 _BASE = "https://www.sec.gov"
 _DATA = "https://data.sec.gov"
@@ -52,20 +57,73 @@ def _submissions(cik: str) -> dict:
         return r.json()
 
 
+# Form 8-K item codes, so an event's meaning never rests on a model's memory.
+_8K_ITEMS = {
+    "1.01": "Entry into a material definitive agreement",
+    "1.02": "Termination of a material definitive agreement",
+    "1.03": "Bankruptcy or receivership",
+    "1.05": "Material cybersecurity incident",
+    "2.01": "Completion of acquisition or disposition of assets",
+    "2.02": "Results of operations and financial condition",
+    "2.03": "Creation of a direct financial obligation",
+    "2.04": "Triggering event that accelerates a financial obligation",
+    "2.05": "Costs associated with exit or disposal activities",
+    "2.06": "Material impairment",
+    "3.01": "Notice of delisting or failure to satisfy a listing rule",
+    "3.02": "Unregistered sale of equity securities",
+    "3.03": "Material modification to rights of security holders",
+    "4.01": "Change in certifying accountant",
+    "4.02": "Non-reliance on previously issued financial statements",
+    "5.01": "Change in control",
+    "5.02": "Departure or appointment of directors or officers",
+    "5.03": "Amendment to articles or bylaws; change in fiscal year",
+    "5.07": "Submission of matters to a vote of security holders",
+    "7.01": "Regulation FD disclosure",
+    "8.01": "Other events",
+    "9.01": "Financial statements and exhibits",
+}
+_8K_TEXT_LIMIT = 6000  # characters; 8-K bodies are short, exhibits are not included
+
+
+def _8k_body(document: str) -> str:
+    """The item text of an 8-K: after the cover page, before the signature."""
+    text = re.sub(r"\s+", " ", html.unescape(re.sub(r"<[^>]+>", " ", document))).strip()
+    start = re.search(r"Item\s+\d\.\d\d", text)
+    if start:
+        text = text[start.start():]
+    return text.split("SIGNATURE")[0].strip()[:_8K_TEXT_LIMIT]
+
+
+def _8k_text(cik: str, accession_no: str, primary_document: str) -> str | None:
+    _throttle()
+    url = (f"{_BASE}/Archives/edgar/data/{int(cik)}/"
+           f"{accession_no.replace('-', '')}/{primary_document}")
+    try:
+        with _client() as c:
+            r = c.get(url)
+            r.raise_for_status()
+            return _8k_body(r.text)
+    except httpx.HTTPError as exc:
+        log.warning("8-K text unavailable (%s): %s", url, exc)
+        return None
+
+
 @cached_for_run
-def get_recent_8k_summaries(ticker: str, n: int = 5) -> list[dict]:
+def get_recent_8ks(ticker: str, n: int = 5) -> list[dict]:
+    """The most recent 8-Ks: filing date, named items and the filing's text."""
     cik = _ticker_to_cik(ticker)
     recent = _submissions(cik)["filings"]["recent"]
+    items = recent.get("items", [""] * len(recent["form"]))
     out: list[dict] = []
     for i, form in enumerate(recent["form"]):
         if form != "8-K":
             continue
+        codes = [c.strip() for c in items[i].split(",") if c.strip()]
         out.append({
-            "form": form,
             "filing_date": recent["filingDate"][i],
-            "accession_no": recent["accessionNumber"][i],
-            "primary_document": recent["primaryDocument"][i],
-            "items": recent.get("items", [""] * len(recent["form"]))[i],
+            "items": [f"{c} {_8K_ITEMS.get(c, 'Other')}" for c in codes],
+            "text": _8k_text(cik, recent["accessionNumber"][i],
+                             recent["primaryDocument"][i]),
         })
         if len(out) >= n:
             break
