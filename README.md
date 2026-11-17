@@ -12,6 +12,7 @@
 <img src="https://img.shields.io/badge/interface-Gradio%20%2B%20Rich-B08D57?style=flat-square&labelColor=0F1B33" alt="Gradio and Rich">
 <img src="https://img.shields.io/badge/managed%20by-uv-B08D57?style=flat-square&labelColor=0F1B33" alt="Managed by uv">
 <img src="https://img.shields.io/badge/license-MIT-B08D57?style=flat-square&labelColor=0F1B33" alt="MIT license">
+<img src="https://img.shields.io/github/actions/workflow/status/lenamonj/equity-trader/ci.yml?branch=main&label=tests&style=flat-square&labelColor=0F1B33" alt="Test status">
 
 <br><br>
 
@@ -30,12 +31,12 @@
 
 <br>
 
-<img src="docs/screenshots/verdict.png" width="100%" alt="The verdict card for AVGO: a HOLD at conviction 6 of 10, current price, 6-month target and committee score.">
+<img src="docs/screenshots/verdict.png" width="100%" alt="The verdict card for AVGO: recommendation, conviction, current price, 6-month target and committee score.">
 
 <br>
 
 > [!IMPORTANT]
-> **Every ticker run makes paid LLM calls.** An `OPENAI_API_KEY` with funded credit is required. One run is eight `gpt-4o-mini` specialist calls plus one `gpt-4o` orchestrator call, billed per token by OpenAI. Cost depends on prompt length and how many tools each agent calls. OpenAI is the only model provider configured.
+> **Every ticker run makes paid LLM calls.** An `OPENAI_API_KEY` with funded credit is required. One run is eight `gpt-6-luna` specialist runs plus one `gpt-6.1-sol` orchestrator call, billed per token by OpenAI. Cost depends on prompt length and how many tools each agent calls. Models are set per agent in `equity_trader/config.py`, which can also route any agent to Gemini, Groq or DeepSeek.
 
 <br>
 
@@ -43,7 +44,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/committee-dark.svg">
-  <img src="docs/assets/committee-light.svg" width="100%" alt="The eight desks and their default weights. The same data is in the table below.">
+  <img src="docs/assets/committee-light.svg" width="100%" alt="The eight desks and their weights. The same data is in the table below.">
 </picture>
 
 Each desk has its own analysis framework, its own tools and its own voice. All eight return the same structured verdict: a recommendation, a conviction from 1 to 10, an optional 6-month price target, thesis bullets, risks, and the data points cited.
@@ -53,7 +54,7 @@ Each desk has its own analysis framework, its own tools and its own voice. All e
 
 <br>
 
-| Desk | Discipline | Default weight |
+| Desk | Discipline | Weight |
 |---|---|---:|
 | J.P. Morgan | Fundamental | 25% |
 | Bridgewater Associates | All-Weather Macro | 18% |
@@ -72,7 +73,7 @@ Each desk has its own analysis framework, its own tools and its own voice. All e
 
 The chair writes a portfolio manager memo, names where the desks agree and where they split, flags what could break the call, and suggests a position size. The catalyst calendar is fetched live from market data, so the dates are real.
 
-<img src="docs/screenshots/memo.png" width="100%" alt="The investment memo with agreements, splits, red flags, position sizing, and a catalyst calendar of dividend and earnings dates.">
+<img src="docs/screenshots/memo.png" width="100%" alt="The investment memo with agreements, splits, red flags, position sizing, and the catalyst calendar.">
 
 Every desk's reasoning stays on the page. Nothing is averaged away.
 
@@ -91,7 +92,7 @@ Every desk's reasoning stays on the page. Nothing is averaged away.
 - **Rate-limit aware fan-out.** A semaphore runs three agents at a time, with exponential backoff on `RateLimitError`.
 - **One fetch per run.** Data tools are memoized in a per-run `ContextVar` cache, so eight agents share fetches instead of hammering the APIs.
 - **Temporal grounding.** The orchestrator is handed today's date, the current price, and a real catalyst calendar. Any catalyst dated outside the horizon is dropped in code.
-- **Graceful degradation.** A failed desk is excluded and its weight is redistributed. If the orchestrator call fails, a mechanical aggregation takes its place.
+- **Graceful degradation.** A failed desk is excluded and its weight is redistributed. Only the runner can mark a desk as failed. If the orchestrator call fails, a mechanical aggregation takes its place.
 
 <br>
 
@@ -105,9 +106,9 @@ score = sum( sign(recommendation) * conviction * weight ) / 100
 
 `sign` is +1 for BUY, 0 for HOLD and -1 for SELL. Conviction runs 1 to 10 and weights sum to 100, so the score ranges from -10 to +10.
 
-The orchestrator reads the score and all eight verdicts, then writes a 150 to 300 word memo. It may depart from the default weights, but it must then explain why in writing.
+The weights are fixed in code. The orchestrator cannot change them. It reads the score and all eight verdicts, then writes a 150 to 300 word memo and makes the final call. That call is a judgment and may depart from the score, but a call against the score's sign has to come with a written rationale.
 
-After the LLM call, the score, the conviction-weighted price target, the run timestamp, the current price, the agent verdicts and the sourced catalysts are stamped over whatever the model returned. The model cannot alter them. A call that contradicts the sign of the score without a written rationale is flagged on the report.
+After the LLM call, the score, the conviction-weighted price target, the run timestamp, the current price, the agent verdicts and the sourced catalysts are stamped over whatever the model returned. The model cannot alter them. A call against the score's sign with no rationale is flagged on the report.
 
 <br>
 
@@ -163,9 +164,9 @@ All market data is free. No paid feeds.
 
 | Source | Used for |
 |---|---|
-| yfinance | Price history, fundamentals, options chains, analyst targets, peer sets, earnings and dividend calendar |
-| SEC EDGAR | 10-K, 10-Q and 8-K filings |
-| FRED | Macro series: DGS10, DGS2, T10Y2Y, CPI, UNRATE, FEDFUNDS, NFCI, VIX |
+| yfinance | Price history, annual and quarterly statements, valuation multiples, options chains, analyst targets, peer sets, earnings and dividend calendar |
+| SEC EDGAR | Filing index: latest 10-K and 10-Q dates, recent 8-Ks with item codes |
+| FRED | Macro series, each with its observation date: DGS10, DGS2, T10Y2Y, CPI, UNRATE, FEDFUNDS, NFCI, VIX |
 
 <br>
 
@@ -193,13 +194,14 @@ equity-trader/
 ├── pyproject.toml              # uv project + dependencies
 ├── .env.template               # required environment variables
 ├── equity_trader/
-│   ├── config.py               # model routing + default weights
+│   ├── config.py               # model routing + weights
 │   ├── schemas.py              # Pydantic: AgentVerdict, OrchestratorVerdict
 │   ├── exceptions.py
 │   ├── scoring.py              # deterministic weighted score
 │   ├── orchestrator.py         # LLM synthesizer + mechanical fallback
 │   ├── runner.py               # async fan-out with rate-limit handling
 │   ├── persistence.py          # SQLite + JSON snapshots
+│   ├── ui.css                  # web UI stylesheet
 │   ├── data/
 │   │   ├── cache.py            # per-run ContextVar cache
 │   │   ├── yfinance_tools.py
@@ -217,6 +219,7 @@ equity-trader/
 │       ├── renaissance_pattern.py
 │       └── two_sigma_backtest.py
 ├── tests/                      # unit + integration tests
+├── .github/workflows/ci.yml    # unit tests on every push
 └── docs/
     ├── design/                 # full system design spec
     ├── plan/                   # TDD implementation plan

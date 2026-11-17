@@ -13,6 +13,9 @@ equity_trader.db-wal
 # Local-only persona reference images (kept on disk, never committed)
 *-trader.png
 
+# Fonts fetched by docs/assets/build_assets.py
+docs/assets/.fonts/
+
 # Local-only working notes
 summary.md
 

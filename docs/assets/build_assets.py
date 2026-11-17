@@ -2,15 +2,13 @@
 
 All text is converted to outlines so the plates render identically on GitHub,
 which blocks web fonts inside SVG images. Fonts are the app's own (Fraunces,
-Geist Mono, both OFL) and are read from a local directory, not committed.
+Geist Mono, both OFL). They are downloaded from github.com/google/fonts on
+first use into docs/assets/.fonts, which is not committed.
 
-Usage:
-    uv run --with fonttools --with uharfbuzz python docs/assets/build_assets.py <fonts_dir>
-
-<fonts_dir> must contain Fraunces.ttf, Fraunces-Italic.ttf and GeistMono.ttf
-(the variable fonts from github.com/google/fonts).
+Usage (from the repo root):
+    uv run --with fonttools --with uharfbuzz python docs/assets/build_assets.py
 """
-import sys
+import urllib.request
 from html import escape
 from io import BytesIO
 from pathlib import Path
@@ -25,6 +23,23 @@ from equity_trader.config import AGENT_WEIGHTS
 
 OUT = Path(__file__).parent
 W = 1280
+
+_FONT_REPO = "https://raw.githubusercontent.com/google/fonts/main/ofl/"
+FONT_URLS = {
+    "Fraunces.ttf": _FONT_REPO + "fraunces/Fraunces%5BSOFT%2CWONK%2Copsz%2Cwght%5D.ttf",
+    "Fraunces-Italic.ttf": _FONT_REPO + "fraunces/Fraunces-Italic%5BSOFT%2CWONK%2Copsz%2Cwght%5D.ttf",
+    "GeistMono.ttf": _FONT_REPO + "geistmono/GeistMono%5Bwght%5D.ttf",
+}
+
+
+def fetch_fonts() -> Path:
+    fonts = OUT / ".fonts"
+    fonts.mkdir(exist_ok=True)
+    for name, url in FONT_URLS.items():
+        if not (fonts / name).exists():
+            print(f"downloading {name}")
+            urllib.request.urlretrieve(url, fonts / name)
+    return fonts
 
 THEMES = {
     "light": dict(bg="#FBFAF7", card="#FFFFFF", border="#EAE5DC", rule="#D8D1C4",
@@ -146,7 +161,7 @@ def banner(f: dict, t: dict) -> str:
 def committee(f: dict, t: dict) -> str:
     b = [
         f["mono"].draw("THE COMMITTEE", 56, 62, 11, t["ink4"], tracking=0.18),
-        f["mono"].draw("DEFAULT WEIGHTS, SUM TO 100", W - 56, 62, 11, t["ink4"], "end", tracking=0.18),
+        f["mono"].draw("FIXED WEIGHTS, SUM TO 100", W - 56, 62, 11, t["ink4"], "end", tracking=0.18),
         line(56, 80, W - 56, 80, t["border"]),
     ]
     cw, ch, gap = 277, 176, 20
@@ -232,7 +247,7 @@ def architecture(f: dict, t: dict) -> str:
 
 
 def main() -> None:
-    fonts = Path(sys.argv[1])
+    fonts = fetch_fonts()
     plain = dict(SOFT=0, WONK=0)
     f = {
         "display": Face(fonts / "Fraunces.ttf", opsz=144, wght=500, **plain),
