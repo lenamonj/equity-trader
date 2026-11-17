@@ -1,32 +1,42 @@
+import logging
+
 from agents import Runner, function_tool
 
 from equity_trader.agents.base import build_agent, shared_rules_block
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import edgar_tools as edg
 from equity_trader.data import yfinance_tools as yft
+from equity_trader.exceptions import DataFetchError
 from equity_trader.schemas import AgentVerdict
+
+log = logging.getLogger(__name__)
 
 AGENT_NAME = "jpm_fundamental"
 
 
+def get_fundamentals(ticker: str) -> dict:
+    """Statements as filed with the SEC, plus market valuation multiples.
+
+    Companies with no US-GAAP statements on EDGAR (IFRS filers, funds) fall
+    back to yfinance statements, and the `source` field says so.
+    """
+    try:
+        statements = edg.get_financial_statements(ticker)
+    except DataFetchError as exc:
+        log.warning("SEC statements unavailable for %s, using yfinance: %s", ticker, exc)
+        return {"source": "yfinance (no US-GAAP statements on SEC EDGAR)",
+                **yft.get_fundamentals(ticker)}
+    return {**statements, "valuation": yft.get_valuation(ticker)}
+
+
 @function_tool
 def tool_get_fundamentals(ticker: str) -> dict:
-    return yft.get_fundamentals(ticker)
+    return get_fundamentals(ticker)
 
 
 @function_tool
 def tool_get_analyst_targets(ticker: str) -> dict:
     return yft.get_analyst_targets(ticker)
-
-
-@function_tool
-def tool_get_latest_10k(ticker: str) -> dict:
-    return edg.get_latest_10k(ticker)
-
-
-@function_tool
-def tool_get_latest_10q(ticker: str) -> dict:
-    return edg.get_latest_10q(ticker)
 
 
 @function_tool
@@ -66,11 +76,14 @@ Analyze:
 - Risk assessment: the biggest risks that could permanently impair the
   business model (disruption, regulation, key person dependency)
 
-The fundamentals tool returns annual statements, the last five quarterly
-income statements, and current valuation multiples. The EDGAR tools return
-filing metadata (form, filing date, 8-K item codes), not filing contents: use
-them to establish what was filed and when. Cite specific numbers and the
-period they belong to - never paraphrase from memory.
+The fundamentals tool returns the statements as filed with the SEC: the last
+four fiscal years and the last five quarters, each with its period end, form
+and filing date, plus current valuation multiples from market data. A null
+line item means the company does not report it; do not estimate it. The
+`source` field names where the statements came from; cite it. The 8-K tool
+returns filing dates and item codes for recent events, not filing contents.
+Cite specific numbers and the period they belong to - never paraphrase from
+memory.
 
 {shared_rules_block()}
 
@@ -83,7 +96,6 @@ agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
     tools=[tool_get_fundamentals, tool_get_analyst_targets,
-           tool_get_latest_10k, tool_get_latest_10q,
            tool_get_recent_8k_summaries],
     spec=AGENT_MODELS[AGENT_NAME],
     output_type=AgentVerdict,
