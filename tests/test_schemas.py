@@ -3,48 +3,66 @@ from datetime import date, datetime
 import pytest
 from pydantic import ValidationError
 
-from equity_trader.schemas import AgentVerdict, CatalystEvent, OrchestratorVerdict
+from equity_trader.schemas import (
+    AgentVerdict,
+    CatalystEvent,
+    CheckedEvidence,
+    DeskReport,
+    Evidence,
+    OrchestratorVerdict,
+    desk_report_for,
+)
 
 
-def test_agent_verdict_minimal_ok():
-    v = AgentVerdict(
-        agent="jpm_fundamental",
-        ticker="NVDA",
-        recommendation="BUY",
-        conviction=8,
-        price_target_6mo=215.0,
-        thesis=["FCF expanding", "Capex visibility"],
-        risks=["China exports"],
-        data_cited=["10-Q Q1"],
-    )
-    assert v.recommendation == "BUY"
-    assert v.error_note is None
+def _reading(**overrides):
+    return {"metric": "RSI, 14-day", "value": 16.0, "unit": "index",
+            "as_of": "2026-11-17", "source": "technicals", "signal": "bearish", **overrides}
 
 
-def test_agent_verdict_conviction_range():
+def _report(**overrides):
+    return {"evidence": [_reading()], "thesis": ["Deeply oversold."], "risks": ["Bounce."],
+            "recommendation": "SELL", "conviction": 7, "price_target_6mo": None, **overrides}
+
+
+Report = desk_report_for(["technicals", "key_levels"])
+
+
+def test_a_desk_report_is_written_evidence_first_and_the_call_last():
+    assert list(DeskReport.model_fields) == [
+        "evidence", "thesis", "risks", "recommendation", "conviction", "price_target_6mo"]
+    assert list(Evidence.model_fields) == [
+        "metric", "value", "unit", "as_of", "source", "signal"]
+    report = Report.model_validate(_report())
+    assert report.evidence[0].as_of == date(2026, 11, 17)
+
+
+def test_a_desk_report_has_no_field_that_code_owns():
+    owned = {"agent", "ticker", "error_note"}
+    assert not owned & set(DeskReport.model_fields) and owned <= set(AgentVerdict.model_fields)
+    assert "in_data" not in Evidence.model_fields and "in_data" in CheckedEvidence.model_fields
+
+
+@pytest.mark.parametrize("change", [
+    {"conviction": 11},
+    {"recommendation": "STRONG_BUY"},
+    {"evidence": []},
+    {"thesis": []},
+    {"risks": ["a", "b", "c", "d", "e"]},
+    {"evidence": [_reading(source="fundamentals")]},   # a section this desk was not handed
+    {"evidence": [_reading(signal="strongly bullish")]},
+    {"evidence": [_reading(unit="basis points")]},
+    {"evidence": [_reading(value="about sixteen")]},
+    {"evidence": [_reading(as_of="last Tuesday")]},
+])
+def test_a_desk_report_outside_the_schema_is_rejected(change):
     with pytest.raises(ValidationError):
-        AgentVerdict(
-            agent="a", ticker="T", recommendation="BUY", conviction=11,
-            thesis=["x"], risks=["y"], data_cited=["z"],
-        )
+        Report.model_validate(_report(**change))
 
 
-def test_agent_verdict_recommendation_literal():
-    with pytest.raises(ValidationError):
-        AgentVerdict(
-            agent="a", ticker="T", recommendation="STRONG_BUY", conviction=5,
-            thesis=["x"], risks=["y"], data_cited=["z"],
-        )
-
-
-def test_agent_verdict_empty_lists_allowed():
-    # Models occasionally return empty thesis/risks/data_cited; we accept them
-    # rather than fail Pydantic validation and lose the rest of the verdict.
-    v = AgentVerdict(
-        agent="a", ticker="T", recommendation="HOLD", conviction=3,
-        thesis=[], risks=[], data_cited=[],
-    )
-    assert v.thesis == []
+def test_a_failed_desks_verdict_needs_no_evidence():
+    v = AgentVerdict(agent="a", ticker="T", recommendation="HOLD", conviction=1,
+                     error_note="RuntimeError: boom")
+    assert (v.evidence, v.thesis) == ([], [])
 
 
 def test_catalyst_event():
@@ -57,8 +75,7 @@ def test_catalyst_event():
 def _sample_verdict(agent="a", rec="BUY"):
     return AgentVerdict(
         agent=agent, ticker="NVDA", recommendation=rec, conviction=7,
-        price_target_6mo=200.0, thesis=["t"], risks=["r"], data_cited=["d"],
-    )
+        price_target_6mo=200.0, thesis=["t"], risks=["r"], )
 
 
 def test_orchestrator_verdict_minimal_ok():

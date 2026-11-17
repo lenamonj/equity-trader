@@ -8,9 +8,9 @@ from equity_trader import orchestrator
 from equity_trader.agents import ALL_AGENTS, ALL_DATA
 from equity_trader.data.cache import reset_run_cache
 from equity_trader.data.yfinance_tools import get_quote
-from equity_trader.gatherer import gather
+from equity_trader.gatherer import check, gather
 from equity_trader.persistence import persist
-from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
+from equity_trader.schemas import AgentVerdict, DeskReport, OrchestratorVerdict
 
 log = logging.getLogger(__name__)
 
@@ -30,30 +30,30 @@ def _error_verdict(agent: str, ticker: str, exc: Exception) -> AgentVerdict:
         agent=agent, ticker=ticker, recommendation="HOLD", conviction=1,
         thesis=["Agent failed; HOLD placeholder."],
         risks=[f"Agent {agent} unavailable for this run."],
-        data_cited=["n/a"],
         error_note=f"{type(exc).__name__}: {exc}",
     )
 
 
-def _stamp(v: AgentVerdict, name: str, ticker: str) -> AgentVerdict:
-    # error_note is the system's failure marker and drops a desk from the
-    # score. Models fill it with data caveats, so a returned verdict never
-    # keeps one; the caveat moves to risks when there is room.
-    risks = v.risks
-    if v.error_note and len(risks) < 4:
-        risks = [*risks, v.error_note]
-    return v.model_copy(update={"agent": name, "ticker": ticker,
-                                "risks": risks, "error_note": None})
+def _verdict(name: str, ticker: str, report: DeskReport, gathered: dict) -> AgentVerdict:
+    """A desk's report plus what code knows: which desk it is, the ticker, and
+    whether each number it cited is in the data it was handed."""
+    evidence = check(report.evidence, gathered)
+    missing = [item.metric for item in evidence if not item.in_data]
+    if missing:
+        log.warning("Agent %s cited %d reading(s) not found in its data: %s",
+                    name, len(missing), missing)
+    return AgentVerdict(agent=name, ticker=ticker,
+                        **report.model_dump(exclude={"evidence"}), evidence=evidence)
 
 
-Desk = Callable[[str, dict], Awaitable[AgentVerdict]]
+Desk = Callable[[str, dict], Awaitable[DeskReport]]
 
 
 async def _run_one(name: str, fn: Desk, ticker: str, gathered: dict) -> AgentVerdict:
     last_rate_limit: Exception | None = None
     for attempt, delay in enumerate(_RATE_LIMIT_BACKOFF + [None]):
         try:
-            return _stamp(await fn(ticker, gathered), name, ticker)
+            return _verdict(name, ticker, await fn(ticker, gathered), gathered)
         except openai.RateLimitError as e:
             last_rate_limit = e
             if delay is None:

@@ -5,7 +5,7 @@ from equity_trader.agents.shared_data import SHARED_DATA, estimates
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import company_tools, market_tools
 from equity_trader.gatherer import brief
-from equity_trader.schemas import AgentVerdict
+from equity_trader.schemas import DeskReport, desk_report_for
 
 AGENT_NAME = "citadel_quant"
 
@@ -77,8 +77,7 @@ number and its rank.
 
 {shared_rules_block()}
 
-Return a structured AgentVerdict with agent='{AGENT_NAME}'. The framework
-above guides your reasoning; the OUTPUT must be the AgentVerdict schema,
+The framework above guides your reasoning. Answer in the report schema,
 not a free-form strategy doc.
 """
 
@@ -89,10 +88,10 @@ agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
     spec=AGENT_MODELS[AGENT_NAME],
-    output_type=AgentVerdict,
+    output_type=desk_report_for([section.__name__ for section in DATA]),
 )
 
 
-async def run(ticker: str, gathered: dict[str, dict]) -> AgentVerdict:
+async def run(ticker: str, gathered: dict[str, dict]) -> DeskReport:
     result = await Runner.run(agent, input=brief(ticker, DATA, gathered))
     return result.final_output

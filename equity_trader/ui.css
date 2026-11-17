@@ -817,6 +817,55 @@ footer, .show-api, .built-with, .footer { display: none !important; }
   height: 1px;
   background: var(--sell);
 }
+.evidence-block {
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--border);
+}
+.evidence-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  margin-bottom: 4px;
+}
+.evidence-row {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 2px 0;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.evidence-row .sig {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ink-5);
+  transform: translateY(-1px);
+}
+.evidence-row .sig-bullish { background: var(--buy); }
+.evidence-row .sig-bearish { background: var(--sell); }
+.evidence-metric {
+  flex: 1;
+  font-family: var(--font-body);
+  color: var(--ink-3);
+}
+.evidence-value {
+  flex: none;
+  font-family: var(--font-mono);
+  color: var(--ink-1);
+  font-feature-settings: 'tnum' on;
+}
+.evidence-note {
+  margin-top: 5px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--ink-4);
+}
 .risks-block {
   margin-top: auto;
   padding-top: 12px;

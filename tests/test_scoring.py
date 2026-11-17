@@ -5,7 +5,7 @@ from equity_trader.scoring import compute_weighted_score, redistribute_weights
 def _v(agent, rec, conv=5, err=None):
     return AgentVerdict(agent=agent, ticker="T", recommendation=rec,
                         conviction=conv, thesis=["x"], risks=["y"],
-                        data_cited=["z"], error_note=err)
+                        error_note=err)
 
 
 def test_all_buy_unanimous():

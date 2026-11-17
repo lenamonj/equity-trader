@@ -1,12 +1,9 @@
-from unittest.mock import AsyncMock, patch
 
 import numpy as np
 import pandas as pd
 import pytest
 
 from equity_trader.agents import two_sigma_backtest as mod
-from equity_trader.schemas import AgentVerdict
-from tests.agents import gathered_for
 
 
 def _frame(prices):
@@ -75,15 +72,3 @@ def test_breakout_rule_fires_on_the_first_new_high():
     direction, signals = mod._signals(df)["new_52_week_high"]
     assert direction == 1
     assert signals.iloc[-2] and not signals.iloc[-3]
-
-
-@pytest.mark.asyncio
-async def test_two_sigma_backtest_run_returns_agent_verdict(monkeypatch):
-    fake = AgentVerdict(
-        agent="two_sigma_backtest", ticker="NVDA", recommendation="HOLD",
-        conviction=4, thesis=["weak signal"], risks=["noisy"], data_cited=["bt"],
-    )
-    with patch.object(mod, "Runner") as RunnerCls:
-        RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": fake})())
-        out = await mod.run("NVDA", gathered_for(mod))
-        assert out.agent == "two_sigma_backtest"

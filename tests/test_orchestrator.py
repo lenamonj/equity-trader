@@ -1,115 +1,103 @@
-from datetime import UTC, date, datetime, timedelta
+import json
+from datetime import date, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from agents import AgentOutputSchema
+from pydantic import ValidationError
 
 from equity_trader import orchestrator as orch
 from equity_trader.config import AGENT_WEIGHTS
-from equity_trader.schemas import AgentVerdict, CatalystEvent, OrchestratorVerdict
+from equity_trader.schemas import (
+    AgentVerdict,
+    ChairMemo,
+    CheckedEvidence,
+    OrchestratorVerdict,
+    chair_memo_for,
+)
+
+Memo = chair_memo_for(list(AGENT_WEIGHTS))
 
 
 def _v(agent, rec, conv=7, tgt=200.0, err=None):
     return AgentVerdict(agent=agent, ticker="NVDA", recommendation=rec,
                         conviction=conv, price_target_6mo=tgt,
-                        thesis=["t"], risks=["r"], data_cited=["d"],
-                        error_note=err)
+                        thesis=["t"], risks=["r"], error_note=err)
+
+
+def _memo(rec, rationale=None, drivers=("jpm_fundamental",)):
+    return Memo(
+        key_agreements=["FCF and technicals align"],
+        key_disagreements=["Macro against fundamental on the rate path"],
+        red_flags=["existing flag"], dominant_drivers=list(drivers),
+        synthesis="A synthesis sufficiently long to clear the schema minimum length.",
+        final_recommendation=rec, conviction=7, score_departure_rationale=rationale,
+        position_sizing_suggestion="starter (~1%)", stop_loss_level=None)
+
+
+async def _run_with(memo, verdicts, ticker="NVDA", price=190.0):
+    with patch.object(orch, "Runner") as RunnerCls:
+        RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": memo})())
+        return await orch.run(ticker, verdicts, current_price=price)
 
 
 @pytest.fixture(autouse=True)
 def _no_real_calendar(monkeypatch):
-    # Default: orchestrator tests do NOT hit yfinance for the calendar.
-    # Individual tests can override by setting orch.get_real_catalysts again.
+    # Orchestrator tests do not hit yfinance or FRED for the calendar unless
+    # a test sets orch.get_real_catalysts itself.
     monkeypatch.setattr(orch, "get_real_catalysts", lambda ticker, today: [])
 
 
 @pytest.mark.asyncio
-async def test_orchestrator_run_returns_orchestrator_verdict():
-    verdicts = [
-        _v("jpm_fundamental", "BUY", 8, 215),
-        _v("bridgewater_macro", "HOLD", 6, None),
-        _v("gs_technical", "BUY", 7, 208),
-        _v("citadel_quant", "BUY", 6, 205),
-        _v("renaissance_pattern", "HOLD", 5, None),
-        _v("de_shaw_options", "BUY", 6, 210),
-        _v("two_sigma_backtest", "HOLD", 4, None),
-    ]
-    fake = OrchestratorVerdict(
-        ticker="NVDA", run_timestamp=datetime.now(UTC), current_price=190.0,
-        final_recommendation="BUY", conviction=7, price_target_6mo=210.0,
-        weighted_score=3.55, weights_used={"jpm_fundamental": 25.0},
-        score_departure_rationale=None,
-        synthesis="Strong fundamentals confirmed by technicals; macro acceptable for horizon.",
-        key_agreements=["FCF and technicals align"],
-        key_disagreements=["Macro vs fundamental on rate path"],
-        dominant_drivers=["jpm_fundamental", "gs_technical"],
-        red_flags=["Customer concentration"],
-        position_sizing_suggestion="starter (~1%)",
-        stop_loss_level=182.0, catalyst_calendar=[], agent_verdicts=verdicts,
-    )
-    with patch.object(orch, "Runner") as RunnerCls:
-        RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": fake})())
-        out = await orch.run("NVDA", verdicts, current_price=190.0)
-        assert isinstance(out, OrchestratorVerdict)
-        assert out.final_recommendation == "BUY"
+async def test_the_chair_writes_a_memo_and_code_supplies_everything_else(monkeypatch):
+    real_date = date.today() + timedelta(days=90)
+    monkeypatch.setattr(orch, "get_real_catalysts", lambda ticker, t: [
+        {"event": "Earnings release", "date": real_date.isoformat(),
+         "expected_impact": "HIGH", "notes": "Source: yfinance calendar"}])
+    verdicts = [_v("jpm_fundamental", "BUY", 8, 215), _v("gs_technical", "BUY", 7, None)]
 
+    out = await _run_with(_memo("BUY", drivers=["jpm_fundamental", "gs_technical"]), verdicts)
 
-@pytest.mark.asyncio
-async def test_orchestrator_stamps_deterministic_fields_over_llm_hallucination():
-    # LLM returns a verdict with garbage timestamp/price/score/verdicts.
-    # The orchestrator must overwrite those with the runner-supplied truth.
-    real_verdicts = [_v("jpm_fundamental", "BUY", 8, 215)]
-    hallucinated = OrchestratorVerdict(
-        ticker="WRONG", run_timestamp=datetime(2020, 1, 1),
-        current_price=999.0, final_recommendation="BUY", conviction=7,
-        price_target_6mo=210.0, weighted_score=99.9,
-        weights_used={"made_up_agent": 100.0}, score_departure_rationale=None,
-        synthesis="A synthesis sufficiently long to clear the schema minimum length.",
-        key_agreements=[], key_disagreements=[], dominant_drivers=[],
-        red_flags=[], position_sizing_suggestion="starter (~1%)",
-        stop_loss_level=None, catalyst_calendar=[],
-        agent_verdicts=[_v("fabricated_agent", "BUY", 9)],
-    )
-    with patch.object(orch, "Runner") as RunnerCls:
-        RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": hallucinated})())
-        out = await orch.run("NVDA", real_verdicts, current_price=190.0)
-    assert out.ticker == "NVDA"
-    assert out.current_price == 190.0
-    assert out.run_timestamp.year >= 2026
-    assert out.agent_verdicts == real_verdicts
-    # weighted_score must be the deterministic value, not 99.9
-    assert out.weighted_score != 99.9
-    # The judgment fields (final_recommendation, synthesis, etc.) survive
-    assert out.final_recommendation == "BUY"
+    assert isinstance(out, OrchestratorVerdict)
+    # The judgment is the model's.
+    assert out.final_recommendation == "BUY" and out.conviction == 7
     assert "synthesis sufficiently long" in out.synthesis
-    # Price target is computed from agent targets, not taken from the LLM
+    assert out.dominant_drivers == ["jpm_fundamental", "gs_technical"]
+    # Everything else is code's.
+    assert (out.ticker, out.current_price) == ("NVDA", 190.0)
+    assert out.run_timestamp.year >= 2026
+    assert out.weighted_score == pytest.approx(orch.compute_weighted_score(verdicts,
+                                                                           AGENT_WEIGHTS))
     assert out.price_target_6mo == 215.0
-    # Weights are never taken from the LLM
     assert out.weights_used == AGENT_WEIGHTS
+    assert out.agent_verdicts == verdicts
+    assert [(c.date, c.event) for c in out.catalyst_calendar] == [(real_date,
+                                                                   "Earnings release")]
 
 
-def _llm_verdict(rec, rationale=None, weights=None):
-    return OrchestratorVerdict(
-        ticker="NVDA", run_timestamp=datetime(2020, 1, 1), current_price=1.0,
-        final_recommendation=rec, conviction=7, price_target_6mo=None,
-        weighted_score=0.0, weights_used=weights or dict(AGENT_WEIGHTS),
-        score_departure_rationale=rationale,
-        synthesis="A synthesis sufficiently long to clear the schema minimum length.",
-        key_agreements=[], key_disagreements=[], dominant_drivers=[],
-        red_flags=["existing flag"], position_sizing_suggestion="starter (~1%)",
-        stop_loss_level=None, catalyst_calendar=[], agent_verdicts=[],
-    )
+def test_the_memo_has_no_field_that_code_owns():
+    owned = {"ticker", "run_timestamp", "current_price", "weighted_score", "weights_used",
+             "price_target_6mo", "catalyst_calendar", "agent_verdicts"}
+    assert not owned & set(ChairMemo.model_fields)
+    assert owned <= set(OrchestratorVerdict.model_fields)
 
 
-async def _run_with(llm_output, verdicts):
-    with patch.object(orch, "Runner") as RunnerCls:
-        RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": llm_output})())
-        return await orch.run("NVDA", verdicts, current_price=190.0)
+def test_the_memo_is_written_reasoning_first_and_the_schema_is_enforceable():
+    order = list(AgentOutputSchema(Memo, strict_json_schema=True).json_schema()["properties"])
+    assert order.index("key_disagreements") < order.index("synthesis") < order.index(
+        "final_recommendation")
+    assert AgentOutputSchema(Memo, strict_json_schema=True).is_strict_json_schema()
+
+
+def test_dominant_drivers_can_only_name_a_desk():
+    with pytest.raises(ValidationError):
+        _memo("HOLD", drivers=["jpm_fundamental", "Strong margins offset by debt."])
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_flags_call_against_score_without_rationale():
     bearish = [_v("jpm_fundamental", "SELL", 8), _v("gs_technical", "SELL", 7)]
-    out = await _run_with(_llm_verdict("BUY"), bearish)
+    out = await _run_with(_memo("BUY"), bearish)
     assert out.weighted_score < 0
     assert out.red_flags == ["existing flag", orch._UNEXPLAINED_DEPARTURE]
 
@@ -117,94 +105,48 @@ async def test_orchestrator_flags_call_against_score_without_rationale():
 @pytest.mark.asyncio
 async def test_orchestrator_accepts_call_against_score_with_rationale():
     bearish = [_v("jpm_fundamental", "SELL", 8)]
-    out = await _run_with(_llm_verdict("BUY", rationale="Macro desk downweighted."), bearish)
+    out = await _run_with(_memo("BUY", rationale="Macro desk downweighted."), bearish)
     assert out.red_flags == ["existing flag"]
 
 
 @pytest.mark.asyncio
 async def test_orchestrator_reports_weights_the_score_was_computed_with():
-    llm_weights = dict(AGENT_WEIGHTS, jpm_fundamental=30.0, bridgewater_macro=13.0)
     verdicts = [_v("jpm_fundamental", "BUY", 8),
                 _v("gs_technical", "HOLD", 1, None, err="boom")]
-    out = await _run_with(_llm_verdict("HOLD", weights=llm_weights), verdicts)
+    out = await _run_with(_memo("HOLD"), verdicts)
     assert "gs_technical" not in out.weights_used
     assert abs(sum(out.weights_used.values()) - 100.0) < 1e-9
     assert out.weights_used["jpm_fundamental"] > AGENT_WEIGHTS["jpm_fundamental"]
 
 
-@pytest.mark.asyncio
-async def test_orchestrator_drops_out_of_window_catalysts(monkeypatch):
-    # The LLM occasionally fabricates plausible-looking but past-dated earnings
-    # (e.g., "Q4 2023" when today is 2026). Out-of-window entries are dropped.
-    today = date.today()
-    past = today - timedelta(days=365)
-    future_in = today + timedelta(days=60)
-    future_out = today + timedelta(days=365)
+def test_the_chair_is_handed_one_json_document():
+    reading = CheckedEvidence(metric="RSI, 14-day", value=16.0, unit="index",
+                              as_of=date(2026, 11, 17), source="technicals",
+                              signal="bearish", in_data=True)
+    verdicts = [
+        _v("gs_technical", "SELL", 8, 148.8).model_copy(update={"evidence": [reading]}),
+        _v("jpm_fundamental", "HOLD", 1, None, err="RuntimeError: boom"),
+    ]
+    catalysts = [{"event": "CPI release", "date": "2026-12-10",
+                  "expected_impact": "MEDIUM", "notes": "Source: FRED release calendar"}]
 
-    monkeypatch.setattr(orch, "get_real_catalysts",
-                         lambda ticker, t: [])
+    doc = json.loads(orch._format_input("NVDA", verdicts, 153.81500244140625, -4.67,
+                                        date(2026, 11, 17), catalysts))
 
-    hallucinated = OrchestratorVerdict(
-        ticker="AVGO", run_timestamp=datetime.now(UTC), current_price=300.0,
-        final_recommendation="HOLD", conviction=5, price_target_6mo=320.0,
-        weighted_score=2.0, weights_used={"jpm_fundamental": 100.0},
-        score_departure_rationale=None,
-        synthesis="A synthesis sufficiently long to clear the schema minimum length.",
-        key_agreements=[], key_disagreements=[], dominant_drivers=[],
-        red_flags=[], position_sizing_suggestion="starter (~1%)",
-        stop_loss_level=None,
-        catalyst_calendar=[
-            CatalystEvent(event="Q4 2023 Earnings", date=past,
-                          expected_impact="HIGH"),
-            CatalystEvent(event="Q3 2026 Earnings", date=future_in,
-                          expected_impact="HIGH"),
-            CatalystEvent(event="FY2027 Guidance Day", date=future_out,
-                          expected_impact="MEDIUM"),
-        ],
-        agent_verdicts=[_v("jpm_fundamental", "BUY", 8)],
-    )
-    with patch.object(orch, "Runner") as RunnerCls:
-        RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": hallucinated})())
-        out = await orch.run("AVGO", [_v("jpm_fundamental", "BUY", 8)],
-                              current_price=300.0)
-    dates = [c.date for c in out.catalyst_calendar]
-    assert past not in dates
-    assert future_out not in dates
-    assert future_in in dates
-
-
-@pytest.mark.asyncio
-async def test_orchestrator_injects_real_catalysts_even_if_llm_drops_them(monkeypatch):
-    today = date.today()
-    real_date = today + timedelta(days=90)
-    monkeypatch.setattr(orch, "get_real_catalysts", lambda ticker, t: [
-        {"event": "Earnings release", "date": real_date.isoformat(),
-         "expected_impact": "HIGH", "notes": "Source: yfinance calendar"}
-    ])
-
-    no_calendar = OrchestratorVerdict(
-        ticker="AVGO", run_timestamp=datetime.now(UTC), current_price=300.0,
-        final_recommendation="BUY", conviction=7, price_target_6mo=320.0,
-        weighted_score=4.0, weights_used={"jpm_fundamental": 100.0},
-        score_departure_rationale=None,
-        synthesis="A synthesis sufficiently long to clear the schema minimum length.",
-        key_agreements=[], key_disagreements=[], dominant_drivers=[],
-        red_flags=[], position_sizing_suggestion="starter (~1%)",
-        stop_loss_level=290.0, catalyst_calendar=[],
-        agent_verdicts=[_v("jpm_fundamental", "BUY", 8)],
-    )
-    with patch.object(orch, "Runner") as RunnerCls:
-        RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": no_calendar})())
-        out = await orch.run("AVGO", [_v("jpm_fundamental", "BUY", 8)],
-                              current_price=300.0)
-    assert any(c.date == real_date and c.event == "Earnings release"
-               for c in out.catalyst_calendar)
-
-
-def test_orchestrator_input_names_each_desk_by_house():
-    text = orch._format_input("NVDA", [], 100.0, 0.0, date(2026, 11, 17), [])
-    assert "gs_technical = Goldman Sachs (Technical)" in text
-    assert "REAL_CATALYSTS" in text
+    assert (doc["today"], doc["horizon_end"]) == ("2026-11-17", "2027-05-16")
+    assert (doc["ticker"], doc["current_price"], doc["weighted_score"]) == ("NVDA", 153.82,
+                                                                            -4.67)
+    assert doc["catalysts"] == catalysts
+    goldman, morgan = doc["desks"]
+    assert (goldman["agent"], goldman["house"], goldman["discipline"]) == (
+        "gs_technical", "Goldman Sachs", "Technical")
+    assert goldman["weight"] == 16.0  # 12 of the 75 left once the failed desk drops out
+    assert goldman["report"]["evidence"] == [{
+        "metric": "RSI, 14-day", "value": 16.0, "unit": "index", "as_of": "2026-11-17",
+        "source": "technicals", "signal": "bearish", "in_data": True}]
+    assert set(goldman["report"]) == {"evidence", "thesis", "risks", "recommendation",
+                                      "conviction", "price_target_6mo"}
+    assert morgan["failed"] == "RuntimeError: boom" and "report" not in morgan
 
 
 def test_catalysts_include_scheduled_macro_releases(monkeypatch):
@@ -226,11 +168,3 @@ async def test_orchestrator_falls_back_on_llm_failure():
         out = await orch.run("NVDA", verdicts, current_price=190.0)
         assert isinstance(out, OrchestratorVerdict)
         assert "mechanical aggregation" in out.synthesis.lower()
-
-
-@pytest.mark.asyncio
-async def test_orchestrator_keeps_only_desk_names_as_dominant_drivers():
-    llm = _llm_verdict("HOLD").model_copy(update={
-        "dominant_drivers": ["jpm_fundamental", "Strong margins offset by debt."]})
-    out = await _run_with(llm, [_v("jpm_fundamental", "HOLD", 5)])
-    assert out.dominant_drivers == ["jpm_fundamental"]

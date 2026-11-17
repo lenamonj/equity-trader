@@ -1,11 +1,15 @@
 import importlib
 import inspect
 import re
+from datetime import date
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from equity_trader.agents import ALL_AGENTS, ALL_DATA
 from equity_trader.agents.shared_data import SHARED_DATA
+from equity_trader.schemas import desk_report_for
+from tests.agents import gathered_for
 
 SHARED = {section.__name__ for section in SHARED_DATA}
 EVERY_SECTION = {section.__name__ for section in ALL_DATA}
@@ -52,6 +56,38 @@ def test_a_prompt_names_only_sections_the_desk_is_given(name):
 @pytest.mark.parametrize("name", DESKS)
 def test_a_desk_has_no_tools(name):
     assert _module(name).agent.tools == []
+
+
+@pytest.mark.parametrize("name", DESKS)
+def test_a_desks_schema_is_enforced_and_can_only_cite_its_own_sections(name):
+    module = _module(name)
+    output = module.agent.output_type
+    assert output.is_strict_json_schema()
+    schema = output.json_schema()
+    assert list(schema["properties"])[0] == "evidence"  # evidence first, the call after
+    assert list(schema["properties"]).index("thesis") < list(schema["properties"]).index(
+        "recommendation")
+    assert schema["$defs"]["Evidence"]["properties"]["source"]["enum"] == [
+        section.__name__ for section in module.DATA]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name", DESKS)
+async def test_a_desk_sends_its_brief_and_returns_the_models_report(name):
+    module = _module(name)
+    sections = [section.__name__ for section in module.DATA]
+    report = desk_report_for(sections)(
+        evidence=[{"metric": "Price", "value": 153.82, "unit": "usd",
+                   "as_of": date(2026, 11, 17), "source": "company_snapshot",
+                   "signal": "neutral"}],
+        thesis=["finding"], risks=["risk"], recommendation="HOLD", conviction=5,
+        price_target_6mo=None)
+    with patch.object(module, "Runner") as RunnerCls:
+        RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": report})())
+        out = await module.run("NVDA", gathered_for(module))
+    assert out is report
+    sent = RunnerCls.run.await_args.kwargs["input"]
+    assert sent.startswith("Analyze NVDA") and all(f"## {s}" in sent for s in sections)
 
 
 def test_the_gatherer_fetches_33_sections_shared_context_first():

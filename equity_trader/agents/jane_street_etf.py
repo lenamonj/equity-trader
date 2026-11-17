@@ -11,7 +11,7 @@ from equity_trader.config import AGENT_MODELS
 from equity_trader.data import market_tools
 from equity_trader.data import yfinance_tools as yft
 from equity_trader.gatherer import brief
-from equity_trader.schemas import AgentVerdict
+from equity_trader.schemas import DeskReport, desk_report_for
 
 AGENT_NAME = "jane_street_etf"
 
@@ -92,8 +92,7 @@ observations from the data.
 
 {shared_rules_block()}
 
-Return a structured AgentVerdict with agent='{AGENT_NAME}'. The framework
-above guides your reasoning; the OUTPUT must be the AgentVerdict schema,
+The framework above guides your reasoning. Answer in the report schema,
 not a free-form ETF flow report.
 """
 
@@ -105,10 +104,10 @@ agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
     spec=AGENT_MODELS[AGENT_NAME],
-    output_type=AgentVerdict,
+    output_type=desk_report_for([section.__name__ for section in DATA]),
 )
 
 
-async def run(ticker: str, gathered: dict[str, dict]) -> AgentVerdict:
+async def run(ticker: str, gathered: dict[str, dict]) -> DeskReport:
     result = await Runner.run(agent, input=brief(ticker, DATA, gathered))
     return result.final_output

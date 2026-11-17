@@ -66,6 +66,20 @@ def _fmt_usd(x) -> str:
     return f"${x:,.2f}"
 
 
+def _fmt_reading(value: float, unit: str) -> str:
+    """A cited reading with its unit, large dollar amounts shortened."""
+    if unit == "usd":
+        for size, suffix in ((1e12, "T"), (1e9, "B"), (1e6, "M")):
+            if abs(value) >= size:
+                return f"${value / size:,.1f}{suffix}"
+        return f"${value:,.2f}"
+    if unit == "count":
+        return f"{value:,.0f}"
+    if unit == "fraction":
+        return f"{value * 100:,.2f}%"
+    return f"{value:,.2f}" + {"percent": "%", "ratio": "x"}.get(unit, "")
+
+
 def _fmt_delta(target, current) -> str:
     if target is None or current is None or current == 0:
         return ""
@@ -367,6 +381,22 @@ def _agent_card_html(name: str, av: AgentVerdict | None) -> str:
         lis = "".join(f"<li>{_e(t)}</li>" for t in av.thesis[:3])
         thesis_html = f'<ul class="thesis-list">{lis}</ul>'
 
+    evidence_html = ""
+    if av.evidence:
+        rows = "".join(
+            f'<div class="evidence-row"><span class="sig sig-{item.signal}"></span>'
+            f'<span class="evidence-metric">{_e(item.metric)}</span>'
+            f'<span class="evidence-value">{_e(_fmt_reading(item.value, item.unit))}</span>'
+            f"</div>"
+            for item in av.evidence[:4])
+        found = sum(item.in_data for item in av.evidence)
+        evidence_html = (
+            f'<div class="evidence-block">'
+            f'  <div class="evidence-label">Evidence</div>{rows}'
+            f'  <div class="evidence-note">{len(av.evidence)} readings cited . '
+            f"{found} found in the data</div>"
+            f"</div>")
+
     risks_html = ""
     if av.risks:
         lis = "".join(f"<li>{_e(r)}</li>" for r in av.risks[:2])
@@ -394,6 +424,7 @@ def _agent_card_html(name: str, av: AgentVerdict | None) -> str:
         {target_html}
       </div>
       {_mini_bar(av.conviction)}
+      {evidence_html}
       {thesis_html}
       {risks_html}
     </div>

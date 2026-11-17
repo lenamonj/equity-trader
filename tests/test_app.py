@@ -6,13 +6,35 @@ import pytest
 import app
 from equity_trader.config import AGENT_NAMES, AGENT_WEIGHTS
 from equity_trader.exceptions import TickerNotFoundError
-from equity_trader.schemas import AgentVerdict, CatalystEvent, OrchestratorVerdict
+from equity_trader.schemas import (
+    AgentVerdict,
+    CatalystEvent,
+    CheckedEvidence,
+    OrchestratorVerdict,
+)
+
+
+def _reading(metric, value, unit, signal, in_data=True):
+    return CheckedEvidence(metric=metric, value=value, unit=unit, as_of=date(2026, 11, 17),
+                           source="fundamentals", signal=signal, in_data=in_data)
 
 
 def _desk(name, rec="HOLD", err=None):
-    return AgentVerdict(agent=name, ticker="NVDA", recommendation=rec, conviction=6,
-                        price_target_6mo=210.0, thesis=["<b>thesis</b>"], risks=["risk"],
-                        data_cited=["cite"], error_note=err)
+    return AgentVerdict(
+        agent=name, ticker="NVDA", recommendation=rec, conviction=6, price_target_6mo=210.0,
+        evidence=[_reading("Revenue, <i>Q2</i>", 96_221_000_000, "usd", "bullish"),
+                  _reading("Gross margin", 75.0, "percent", "bullish"),
+                  _reading("Return, 3 months", -0.2901, "fraction", "bearish"),
+                  _reading("Forward P/E", 9.69, "ratio", "neutral", in_data=False)],
+        thesis=["<b>thesis</b>"], risks=["risk"], error_note=err)
+
+
+def test_a_desk_card_shows_its_evidence_and_how_much_was_found_in_the_data():
+    html = app._agent_card_html("jpm_fundamental", _desk("jpm_fundamental"))
+    assert "Revenue, &lt;i&gt;Q2&lt;/i&gt;" in html and "$96.2B" in html
+    assert "75.00%" in html and "-29.01%" in html and "9.69x" in html
+    assert 'class="sig sig-bullish"' in html and 'class="sig sig-neutral"' in html
+    assert "4 readings cited . 3 found in the data" in html
 
 
 def _verdict():

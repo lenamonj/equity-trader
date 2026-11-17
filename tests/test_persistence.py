@@ -10,7 +10,7 @@ from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
 def _verdict():
     av = AgentVerdict(agent="jpm_fundamental", ticker="NVDA",
                        recommendation="BUY", conviction=8,
-                       thesis=["x"], risks=["y"], data_cited=["z"])
+                       thesis=["x"], risks=["y"])
     return OrchestratorVerdict(
         ticker="NVDA", run_timestamp=datetime(2026, 6, 7, 12, 0, 0),
         current_price=190.0, final_recommendation="BUY", conviction=7,

@@ -1,8 +1,13 @@
 import pytest
 from agents import OpenAIChatCompletionsModel, OpenAIResponsesModel
+from pydantic import BaseModel
 
 from equity_trader.agents.base import _client_for, build_agent, shared_rules_block
 from equity_trader.config import ModelSpec
+
+
+class Answer(BaseModel):
+    text: str
 
 
 def test_client_for_openai(monkeypatch):
@@ -35,32 +40,27 @@ def test_build_agent_constructs(monkeypatch):
         name="test_agent",
         instructions="You are a test.",
         spec=ModelSpec("groq", "llama-3.3-70b-versatile"),
-        output_type=dict,
+        output_type=Answer,
     )
     assert a.name == "test_agent"
     assert isinstance(a.model, OpenAIChatCompletionsModel)
+    # A provider that cannot enforce a schema has its output checked afterwards.
+    assert not a.output_type.is_strict_json_schema()
 
 
 def test_build_agent_uses_responses_api_for_openai():
     a = build_agent(name="t", instructions="x",
-                    spec=ModelSpec("openai", "gpt-6-luna"), output_type=dict)
+                    spec=ModelSpec("openai", "gpt-6-luna"), output_type=Answer)
     assert isinstance(a.model, OpenAIResponsesModel)
+    assert a.output_type.is_strict_json_schema()
 
 
 def test_shared_rules_block_mentions_horizon_and_schema():
     text = shared_rules_block()
     assert "3-6 month" in text
-    assert "data_cited" in text
+    assert "`evidence`" in text
     assert "thesis" in text
     assert "risks" in text
-
-
-def test_shared_rules_block_enforces_exact_recommendation_literals():
-    # Models occasionally return SOLD/BOUGHT/HELD instead of BUY/HOLD/SELL,
-    # which Pydantic rejects and we lose the whole verdict.
-    text = shared_rules_block()
-    assert "BUY, HOLD, SELL" in text
-    assert "SOLD" in text  # explicit anti-example
 
 
 def test_shared_rules_block_says_the_data_is_all_there_is():
