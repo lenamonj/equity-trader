@@ -18,7 +18,7 @@
 
 **Eight specialist agents, each modeled on the desk of a storied investment house, analyze one ticker independently.**<br>
 **A committee chair turns their verdicts into a single Buy, Hold or Sell for the next 3 to 6 months.**<br>
-The premise is diversification applied to judgment: desks that read different evidence make different mistakes, so the committee's call is harder to fool than any one view.
+The premise is diversity in thought process: desks that read different evidence make different mistakes, so the committee's call is harder to fool than any one view.
 
 <br>
 
