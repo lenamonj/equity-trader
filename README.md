@@ -1,50 +1,59 @@
 <div align="center">
 
-# EquityTrader
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
+  <img src="docs/assets/banner-light.svg" width="100%" alt="EquityTrader. A multi-strategy investment committee: eight specialist desks, one ticker, one verdict.">
+</picture>
 
-### A multi-strategy investment committee, in your terminal.
-### Eight specialist agents. One ticker. One verdict.
+<br><br>
+
+<img src="https://img.shields.io/badge/python-3.11+-B08D57?style=flat-square&labelColor=0F1B33" alt="Python 3.11+">
+<img src="https://img.shields.io/badge/agents-OpenAI%20Agents%20SDK-B08D57?style=flat-square&labelColor=0F1B33" alt="OpenAI Agents SDK">
+<img src="https://img.shields.io/badge/interface-Gradio%20%2B%20Rich-B08D57?style=flat-square&labelColor=0F1B33" alt="Gradio and Rich">
+<img src="https://img.shields.io/badge/managed%20by-uv-B08D57?style=flat-square&labelColor=0F1B33" alt="Managed by uv">
+<img src="https://img.shields.io/badge/license-MIT-B08D57?style=flat-square&labelColor=0F1B33" alt="MIT license">
+
+<br><br>
+
+**Eight specialist agents, each modeled on the desk of a storied investment house, analyze one ticker independently.**<br>
+**A committee chair turns their verdicts into a single Buy, Hold or Sell for the next 3 to 6 months.**
 
 <br>
 
-![Python](https://img.shields.io/badge/python-3.11+-3776AB?logo=python&logoColor=white)
-![License: MIT](https://img.shields.io/badge/license-MIT-success)
-![Tests](https://img.shields.io/badge/tests-59%20passing-brightgreen)
-![uv](https://img.shields.io/badge/managed%20by-uv-DE5FE9)
-![OpenAI Agents SDK](https://img.shields.io/badge/built%20on-OpenAI%20Agents%20SDK-412991)
-![Gradio](https://img.shields.io/badge/UI-Gradio-F97316)
+<a href="#quick-start">Quick start</a> &nbsp;&middot;&nbsp;
+<a href="#the-committee">The committee</a> &nbsp;&middot;&nbsp;
+<a href="#the-report">The report</a> &nbsp;&middot;&nbsp;
+<a href="#architecture">Architecture</a> &nbsp;&middot;&nbsp;
+<a href="#how-the-verdict-is-computed">Scoring</a>
 
 </div>
 
 <br>
 
-![EquityTrader hero](docs/screenshots/hero.png)
+<img src="docs/screenshots/verdict.png" width="100%" alt="The verdict card for AVGO: a HOLD at conviction 6 of 10, current price, 6-month target and committee score.">
 
 <br>
 
-> **Heads up: this project makes paid LLM calls on every ticker run.**
-> An `OPENAI_API_KEY` with funded credit is required. Each ticker run makes
-> eight calls to `gpt-4o-mini` (specialists) plus one call to `gpt-4o`
-> (orchestrator). OpenAI bills these per token at their published rates;
-> total cost depends on prompt length and how many tool calls each agent
-> makes. There is no free tier alternative built in -- OpenAI is the only
-> model provider currently configured.
-
-<br>
-
-## What it is
-
-EquityTrader convenes eight specialist analysts modeled after the desks of the world's most respected investment houses, then synthesizes their structured verdicts into a single Buy / Hold / Sell recommendation over a 3 to 6 month horizon.
-
-Each specialist reasons independently with its own toolset and persona. A committee orchestrator reads all eight verdicts, computes a deterministic weighted score, and writes a portfolio manager style memo with position sizing, stop loss, and a real catalyst calendar pulled live from market data.
-
-The system is built for actual buyside use. Every number is sourced. Every catalyst date is real. The committee score is auditable down to the contribution of each agent.
+> [!IMPORTANT]
+> **Every ticker run makes paid LLM calls.** An `OPENAI_API_KEY` with funded credit is required. One run is eight `gpt-4o-mini` specialist calls plus one `gpt-4o` orchestrator call, billed per token by OpenAI. Cost depends on prompt length and how many tools each agent calls. OpenAI is the only model provider configured.
 
 <br>
 
 ## The committee
 
-| Specialist | Discipline | Default Weight |
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/committee-dark.svg">
+  <img src="docs/assets/committee-light.svg" width="100%" alt="The eight desks and their default weights. The same data is in the table below.">
+</picture>
+
+Each desk has its own analysis framework, its own tools and its own voice. All eight return the same structured verdict: a recommendation, a conviction from 1 to 10, an optional 6-month price target, thesis bullets, risks, and the data points cited.
+
+<details>
+<summary>The committee as a table</summary>
+
+<br>
+
+| Desk | Discipline | Default weight |
 |---|---|---:|
 | J.P. Morgan | Fundamental | 25% |
 | Bridgewater Associates | All-Weather Macro | 18% |
@@ -55,152 +64,127 @@ The system is built for actual buyside use. Every number is sourced. Every catal
 | Renaissance Technologies | Pattern Recognition | 8% |
 | Two Sigma | Backtest Sanity | 5% |
 
-Each persona has its own multi-bullet analysis framework, its own tool set, and its own voice. The orchestrator can override the default weights when conviction or data quality justifies it, but must explain the override in writing.
+</details>
 
 <br>
 
-## Quick start
+## The report
 
-This project uses [uv](https://docs.astral.sh/uv/) for dependency management. uv installs Python itself if needed, so it is the only prerequisite.
+The chair writes a portfolio manager memo, names where the desks agree and where they split, flags what could break the call, and suggests a position size. The catalyst calendar is fetched live from market data, so the dates are real.
 
-### 1. Install uv (one-time)
+<img src="docs/screenshots/memo.png" width="100%" alt="The investment memo with agreements, splits, red flags, position sizing, and a catalyst calendar of dividend and earnings dates.">
 
-**macOS / Linux:**
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+Every desk's reasoning stays on the page. Nothing is averaged away.
 
-**Windows (PowerShell):**
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-```
-
-Alternatives: `pip install uv`, `pipx install uv`, `brew install uv`. See [uv install docs](https://docs.astral.sh/uv/getting-started/installation/) for more.
-
-### 2. Clone and set up the project
-
-```bash
-# Clone
-git clone https://github.com/lenamonj/equity-trader.git
-cd equity-trader
-
-# Configure API keys
-cp .env.template .env
-# Edit .env: at minimum OPENAI_API_KEY, FRED_API_KEY, SEC_EDGAR_USER_AGENT_EMAIL
-
-# Install Python 3.11 (auto) and all dependencies into a local .venv
-uv sync
-```
-
-`uv sync` reads `pyproject.toml` and `uv.lock`, installs the pinned Python toolchain into a project-local `.venv/`, and resolves every dependency reproducibly. No global Python install, no manual venv activation.
-
-### 3. Run
-
-```bash
-# CLI: rich-formatted terminal report
-uv run python run.py AAPL
-
-# Web UI with hot reload (development)
-uv run gradio app.py
-# Opens at http://127.0.0.1:7860
-
-# Web UI without hot reload (production)
-uv run python app.py
-```
-
-Required API keys:
-
-| Key | Source | Cost |
-|---|---|---|
-| `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com) | **Paid.** Requires funded credit. Billed per token by OpenAI for eight `gpt-4o-mini` specialist calls and one `gpt-4o` orchestrator call per run. |
-| `FRED_API_KEY` | [fred.stlouisfed.org](https://fred.stlouisfed.org/docs/api/api_key.html) | Free |
-| `SEC_EDGAR_USER_AGENT_EMAIL` | Your own email | Free (required by SEC for EDGAR access) |
-
-OpenAI is the only LLM provider currently configured. Multi-provider model routing is on the roadmap.
+<img src="docs/screenshots/specialists.png" width="100%" alt="Eight specialist verdict cards, each with a recommendation, conviction, thesis bullets and risks.">
 
 <br>
 
 ## Architecture
 
-```
-                    ticker
-                      |
-              reset per-run cache
-                      |
-        Semaphore(3) gated asyncio.gather:
-          - JPM Fundamental
-          - Bridgewater Macro
-          - GS Technical
-          - Citadel Quant
-          - Jane Street ETF
-          - DE Shaw Options
-          - Renaissance Pattern
-          - Two Sigma Backtest
-                      |
-            8 structured AgentVerdicts
-                      |
-                Orchestrator
-        (deterministic weighted score
-         + LLM-judged synthesis memo
-         + real catalyst injection)
-                      |
-              OrchestratorVerdict
-                      |
-        persist (SQLite + JSON snapshot)
-                      |
-              render in UI / CLI
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture-dark.svg">
+  <img src="docs/assets/architecture-light.svg" width="100%" alt="A ticker fans out to eight specialist agents, three at a time, sharing one data cache. The orchestrator combines a deterministic score, an LLM memo and live catalysts into one verdict, saved to SQLite and JSON.">
+</picture>
 
-Each specialist is a standalone OpenAI Agents SDK agent with output_type=AgentVerdict. The fan-out is rate-limited to 3 concurrent calls (Semaphore) with exponential backoff on RateLimitError, so the eight agents finish in roughly 30 to 50 seconds end-to-end. The orchestrator is given the ticker's current price, today's date, and a real catalyst calendar fetched live from yfinance, so its output cannot hallucinate temporal facts.
+- **Independent specialists.** Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its output type. No desk sees another's work.
+- **Rate-limit aware fan-out.** A semaphore runs three agents at a time, with exponential backoff on `RateLimitError`.
+- **One fetch per run.** Data tools are memoized in a per-run `ContextVar` cache, so eight agents share fetches instead of hammering the APIs.
+- **Temporal grounding.** The orchestrator is handed today's date, the current price, and a real catalyst calendar. Any catalyst dated outside the horizon is dropped in code.
+- **Graceful degradation.** A failed desk is excluded and its weight is redistributed. If the orchestrator call fails, a mechanical aggregation takes its place.
 
 <br>
 
 ## How the verdict is computed
 
-The committee score is a deterministic weighted sum:
+The committee score is a weighted sum, computed in code:
 
 ```
 score = sum( sign(recommendation) * conviction * weight ) / 100
 ```
 
-where sign(BUY)=+1, sign(HOLD)=0, sign(SELL)=-1, conviction is 1 to 10, and weights sum to 100. The theoretical range is -10 to +10; realistic readings land between -5 and +5.
+`sign` is +1 for BUY, 0 for HOLD and -1 for SELL. Conviction runs 1 to 10 and weights sum to 100, so the score ranges from -10 to +10.
 
-If an agent errors out, its weight is redistributed proportionally to the survivors so the score stays calibrated.
+The orchestrator reads the score and all eight verdicts, then writes a 150 to 300 word memo. It may depart from the default weights, but it must then explain why in writing.
 
-The LLM orchestrator reads the score, the full agent verdicts, today's date, the ticker's current price, and the real catalyst calendar, then writes a 150 to 300 word memo. It may override the default weights if conviction or data quality justifies it, but the override rationale becomes a required field in the output.
+After the LLM call, the score, the run timestamp, the current price, the agent verdicts and the sourced catalysts are stamped over whatever the model returned. The model cannot alter them.
 
-The committee score is stamped deterministically after the LLM call, along with the run timestamp, current price, and agent verdicts. The model cannot fabricate them.
+<br>
+
+## Quick start
+
+[uv](https://docs.astral.sh/uv/) is the only prerequisite. It installs Python for you.
+
+```bash
+git clone https://github.com/lenamonj/equity-trader.git
+cd equity-trader
+cp .env.template .env      # then fill in the three keys below
+uv sync
+```
+
+```bash
+uv run python run.py AAPL   # terminal report
+uv run python app.py        # web UI at http://127.0.0.1:7860
+uv run gradio app.py        # web UI with hot reload
+```
+
+| Key | Source | Cost |
+|---|---|---|
+| `OPENAI_API_KEY` | [platform.openai.com](https://platform.openai.com) | Paid, per token |
+| `FRED_API_KEY` | [fred.stlouisfed.org](https://fred.stlouisfed.org/docs/api/api_key.html) | Free |
+| `SEC_EDGAR_USER_AGENT_EMAIL` | Your own email | Free. The SEC requires it for EDGAR access |
+
+<details>
+<summary>Installing uv</summary>
+
+<br>
+
+macOS and Linux:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Other routes are in the [uv install docs](https://docs.astral.sh/uv/getting-started/installation/).
+
+</details>
 
 <br>
 
 ## Data sources
 
-All free; no paid feeds.
+All market data is free. No paid feeds.
 
 | Source | Used for |
 |---|---|
-| yfinance | OHLCV history, fundamentals, options chains, analyst targets, peer sets, earnings/dividend calendar |
-| SEC EDGAR | 10-K, 10-Q, 8-K filings (no key required; SEC requires a User-Agent with email) |
-| FRED | Macro series (DGS10, DGS2, T10Y2Y, CPI, UNRATE, FEDFUNDS, NFCI, VIX) |
-
-All data tools are memoized per-run via a ContextVar cache, so the seven parallel agents share fetches without hammering APIs.
+| yfinance | Price history, fundamentals, options chains, analyst targets, peer sets, earnings and dividend calendar |
+| SEC EDGAR | 10-K, 10-Q and 8-K filings |
+| FRED | Macro series: DGS10, DGS2, T10Y2Y, CPI, UNRATE, FEDFUNDS, NFCI, VIX |
 
 <br>
 
-## Tech stack
+## Testing
 
-- Python 3.11+ with [uv](https://docs.astral.sh/uv/) for dependency management
-- [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) for tool-using agents with structured output
-- GPT-4o-mini for the eight specialists, GPT-4o for the orchestrator
-- Pydantic v2 for structured output validation
-- Gradio for the web UI (hot-reload via gradio app.py)
-- Rich for the CLI
-- SQLite + JSON for run persistence
-- pytest + respx for tests (unit + integration tier)
+```bash
+uv run pytest -m "not slow"   # unit tests: mocked LLM, mocked data
+uv run pytest -m slow         # integration: live yfinance, EDGAR and FRED
+uv run pytest                 # everything
+```
+
+The mocked tier covers all eight agents, the orchestrator, the runner, the scoring math, persistence, the cache and the schemas.
 
 <br>
 
 ## Project layout
+
+<details>
+<summary>Expand the tree</summary>
 
 ```
 equity-trader/
@@ -232,49 +216,32 @@ equity-trader/
 │       ├── de_shaw_options.py
 │       ├── renaissance_pattern.py
 │       └── two_sigma_backtest.py
-├── tests/                      # 57 unit + integration tests
+├── tests/                      # unit + integration tests
 └── docs/
     ├── design/                 # full system design spec
-    ├── plan/                   # 30-task TDD implementation plan
+    ├── plan/                   # TDD implementation plan
+    ├── assets/                 # README plates + their generator
     └── screenshots/
 ```
 
-<br>
+</details>
 
-## Testing
-
-```bash
-# Unit tests (mocked LLM, mocked data), ~3s
-uv run pytest -m "not slow"
-
-# Integration tests (real yfinance, EDGAR, FRED calls)
-uv run pytest -m slow
-
-# Full suite
-uv run pytest
-```
-
-Mock layer covers all 8 agents, the orchestrator, the runner, the scoring math, persistence, the cache, and the schemas. Integration tests hit real APIs on stable tickers (AAPL).
+The [system design spec](docs/design/2026-06-07-equitytrader-design.md) and the [implementation plan](docs/plan/2026-06-07-equitytrader-implementation.md) are checked in.
 
 <br>
 
-## Design docs
+## Disclaimer
 
-The full design spec and implementation plan are checked in for transparency.
+EquityTrader is a research and engineering project. Its output is generated by language models, can be wrong, and is not investment advice.
 
-- [System design spec](docs/design/2026-06-07-equitytrader-design.md): architecture, agent specs, schemas, data layer, orchestrator policy
-- [Implementation plan](docs/plan/2026-06-07-equitytrader-implementation.md): 30-task TDD plan with verifiable checkpoints
-
-<br>
-
-## Built with
-
-- [Claude Code](https://claude.com/claude-code) for design, implementation, and review
-- [OpenAI Agents SDK](https://github.com/openai/openai-agents-python)
-- [Gradio](https://gradio.app/)
+The desks are stylized personas. This project is not affiliated with, endorsed by, or representative of J.P. Morgan, Bridgewater Associates, Goldman Sachs, Citadel, Jane Street, D. E. Shaw, Renaissance Technologies or Two Sigma. Those names belong to their respective owners.
 
 <br>
 
-## License
+<div align="center">
+
+Built with [Claude Code](https://claude.com/claude-code), the [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) and [Gradio](https://gradio.app/).
 
 [MIT](LICENSE). Copyright (c) 2026 Jeff Lenamon.
+
+</div>
