@@ -14,6 +14,10 @@ from equity_trader.exceptions import DataFetchError
 
 log = logging.getLogger(__name__)
 
+# FRED takes its API key in the request URL, and httpx logs every request URL
+# at INFO. Keep that logger above INFO so the key cannot reach a log.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 
 def _client() -> Fred:
     key = os.environ.get("FRED_API_KEY")

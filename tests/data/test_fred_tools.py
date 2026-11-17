@@ -146,6 +146,17 @@ def test_desks_asking_together_build_one_dashboard(monkeypatch):
 
 
 @respx.mock
+def test_the_api_key_is_never_logged_even_with_logging_turned_up(monkeypatch, caplog):
+    import logging
+    monkeypatch.setenv("FRED_API_KEY", "secret-key-value")
+    respx.get(f"{ft._FRED_API}/release/dates").mock(
+        return_value=httpx.Response(200, json={"release_dates": []}))
+    with caplog.at_level(logging.DEBUG):  # the root logger; httpx keeps its own level
+        assert ft.get_release_calendar() == []
+    assert "secret-key-value" not in caplog.text
+
+
+@respx.mock
 def test_a_failed_release_calendar_does_not_log_the_api_key(monkeypatch, caplog):
     monkeypatch.setenv("FRED_API_KEY", "secret-key-value")
     respx.get(f"{ft._FRED_API}/release/dates").mock(return_value=httpx.Response(429))
