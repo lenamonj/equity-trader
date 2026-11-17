@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 # Cap parallel LLM calls so we stay under OpenAI per-org token/request rate
-# limits. With 7 ~3-4k-token system prompts firing simultaneously, Tier-1
+# limits. With 8 ~3-4k-token system prompts firing simultaneously, Tier-1
 # accounts hit 429s; 3 concurrent keeps headroom while still finishing a
 # full ticker run in ~20-40s.
 _AGENT_CONCURRENCY = 3
@@ -61,7 +61,7 @@ async def _run_one(name: str, fn: Callable[[str], Awaitable[AgentVerdict]],
 
 async def analyze_ticker(ticker: str) -> OrchestratorVerdict:
     reset_run_cache()
-    quote = get_quote(ticker)
+    quote = await asyncio.to_thread(get_quote, ticker)
     current_price = quote["last_price"]
 
     sem = asyncio.Semaphore(_AGENT_CONCURRENCY)

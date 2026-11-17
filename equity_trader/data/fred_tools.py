@@ -1,9 +1,12 @@
+import logging
 import os
 import pandas as pd
 from fredapi import Fred
 
 from equity_trader.data.cache import cached_for_run
 from equity_trader.exceptions import DataFetchError
+
+log = logging.getLogger(__name__)
 
 
 def _client() -> Fred:
@@ -27,7 +30,8 @@ def _last_or_none(series_id: str) -> float | None:
         s = get_series(series_id)
         v = s.dropna().iloc[-1]
         return float(v)
-    except Exception:
+    except Exception as exc:
+        log.warning("FRED series %s unavailable: %s", series_id, exc)
         return None
 
 
@@ -37,8 +41,8 @@ def get_macro_snapshot() -> dict:
     cpi_yoy = None
     try:
         cpi_yoy = float((cpi.iloc[-1] / cpi.iloc[-13] - 1.0) * 100.0)
-    except Exception:
-        pass
+    except Exception as exc:
+        log.warning("CPI year-over-year unavailable: %s", exc)
     return {
         "dgs10": _last_or_none("DGS10"),
         "dgs2": _last_or_none("DGS2"),

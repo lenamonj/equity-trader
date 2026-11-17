@@ -1176,8 +1176,8 @@ def _welcome_html() -> str:
     return f"""
     <div class="welcome-card">
       <div class="welcome-eyebrow">A Multi-Strategy Investment Committee</div>
-      <h1 class="welcome-title">Seven specialists.<br>One ticker. One verdict.</h1>
-      <p class="welcome-body">EquityTrader convenes seven specialist analysts modeled
+      <h1 class="welcome-title">Eight specialists.<br>One ticker. One verdict.</h1>
+      <p class="welcome-body">EquityTrader convenes eight specialist analysts modeled
       after the desks of the world's most respected investment houses, then
       synthesizes their structured verdicts into a single Buy, Hold, or Sell
       recommendation over a 3-6 month horizon.</p>
@@ -1194,7 +1194,7 @@ def _loading_html(ticker: str) -> str:
     <div class="loading-card">
       <div class="loading-mark"></div>
       <div class="loading-title">Convening the committee on {_e(ticker.upper())}</div>
-      <div class="loading-sub">Seven specialists working in parallel . ~20s</div>
+      <div class="loading-sub">Eight specialists at work, three at a time</div>
       <div class="loading-roster">{roster}</div>
     </div>
     """

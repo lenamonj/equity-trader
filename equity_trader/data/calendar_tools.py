@@ -5,12 +5,15 @@ if asked to fill in `catalyst_calendar` from training-data knowledge. This
 module gives the orchestrator real, sourced upcoming events to anchor its
 output against.
 """
+import logging
 from datetime import date, timedelta
 from typing import Iterable
 
 import yfinance as yf
 
 from equity_trader.data.cache import cached_for_run
+
+log = logging.getLogger(__name__)
 
 
 def _within(d: date, today: date, horizon_days: int) -> bool:
@@ -41,7 +44,8 @@ def get_real_catalysts(ticker: str, today: date,
     out: list[dict] = []
     try:
         cal = yf.Ticker(ticker).calendar or {}
-    except Exception:
+    except Exception as exc:
+        log.warning("Catalyst calendar unavailable for %s: %s", ticker, exc)
         return out
 
     for ed in _coerce_dates(cal.get("Earnings Date")):
