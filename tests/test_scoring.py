@@ -45,3 +45,16 @@ def test_redistribute_weights():
     assert abs(out["a"] - 50.0 * 100.0 / 70.0) < 1e-6
     assert abs(out["c"] - 20.0 * 100.0 / 70.0) < 1e-6
     assert "b" not in out
+
+
+def test_conviction_weighted_target_excludes_missing_and_errored():
+    from equity_trader.scoring import conviction_weighted_target
+    from equity_trader.schemas import AgentVerdict
+
+    def v(conv, tgt, err=None):
+        return AgentVerdict(agent="a", ticker="X", recommendation="BUY",
+                            conviction=conv, price_target_6mo=tgt, error_note=err)
+
+    verdicts = [v(8, 200.0), v(2, 100.0), v(5, None), v(9, 999.0, err="boom")]
+    assert conviction_weighted_target(verdicts) == 180.0
+    assert conviction_weighted_target([v(5, None)]) is None

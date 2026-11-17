@@ -24,3 +24,15 @@ def compute_weighted_score(verdicts: list[AgentVerdict],
         w = effective.get(v.agent, 0.0)
         score += _SIGN[v.recommendation] * v.conviction * w
     return score / 100.0
+
+
+def conviction_weighted_target(verdicts: list[AgentVerdict]) -> float | None:
+    """Average of agent price targets, weighted by conviction.
+
+    Agents without a target, or that errored, are excluded.
+    """
+    targets = [(v.price_target_6mo, v.conviction) for v in verdicts
+               if v.price_target_6mo and not v.error_note]
+    if not targets:
+        return None
+    return sum(t * c for t, c in targets) / sum(c for _, c in targets)

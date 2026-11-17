@@ -1,12 +1,13 @@
+import asyncio
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from agents import Runner
 
 from equity_trader.agents.base import build_agent
 from equity_trader.config import AGENT_WEIGHTS, ORCHESTRATOR_MODEL
 from equity_trader.data.calendar_tools import get_real_catalysts
 from equity_trader.schemas import AgentVerdict, CatalystEvent, OrchestratorVerdict
-from equity_trader.scoring import compute_weighted_score, redistribute_weights
+from equity_trader.scoring import compute_weighted_score, conviction_weighted_target
 
 
 _HORIZON_DAYS = 180
@@ -40,8 +41,8 @@ Hard rules:
 3. If your `final_recommendation` sign disagrees with the sign of
    `weighted_score`, you MUST populate `weight_overrides_rationale`.
 4. Surface disagreements explicitly in `key_disagreements`. Do not paper over splits.
-5. `price_target_6mo` is conviction-weighted average of agent targets. Agents
-   without a target are excluded from the average.
+5. Set `price_target_6mo` to null. It is computed in code as the
+   conviction-weighted average of agent targets after you respond.
 6. You may NOT introduce new data not cited by an agent. You are a synthesizer,
    not an analyst.
 7. `position_sizing_suggestion` must be one of: 'not sizeable', 'starter (~1%)',
@@ -108,20 +109,13 @@ def _mechanical_fallback(ticker: str, verdicts: list[AgentVerdict],
         rec, sizing = "SELL", "not sizeable"
     else:
         rec, sizing = "HOLD", "not sizeable"
-    targets = [(v.price_target_6mo, v.conviction) for v in verdicts
-               if v.price_target_6mo and not v.error_note]
-    tgt = None
-    if targets:
-        num = sum(t * c for t, c in targets)
-        den = sum(c for _, c in targets)
-        tgt = num / den if den else None
     return OrchestratorVerdict(
         ticker=ticker,
-        run_timestamp=datetime.utcnow(),
+        run_timestamp=datetime.now(timezone.utc),
         current_price=current_price,
         final_recommendation=rec,
         conviction=min(10, max(1, int(abs(weighted_score) + 1))),
-        price_target_6mo=tgt,
+        price_target_6mo=conviction_weighted_target(verdicts),
         weighted_score=weighted_score,
         weights_used=AGENT_WEIGHTS,
         weight_overrides_rationale=None,
@@ -152,6 +146,16 @@ def _filter_catalysts(events: list[CatalystEvent], today: date,
     return [e for e in events if today <= e.date <= cutoff]
 
 
+_UNEXPLAINED_DEPARTURE = ("Recommendation contradicts the sign of the committee "
+                          "score and no rationale was given.")
+_SIGN = {"BUY": 1, "HOLD": 0, "SELL": -1}
+
+
+def _valid_weights(weights: dict[str, float]) -> bool:
+    return (weights.keys() == AGENT_WEIGHTS.keys()
+            and abs(sum(weights.values()) - 100.0) < 0.5)
+
+
 def _stamp_deterministic(v: OrchestratorVerdict, ticker: str,
                           verdicts: list[AgentVerdict], current_price: float,
                           weighted: float, today: date,
@@ -162,7 +166,6 @@ def _stamp_deterministic(v: OrchestratorVerdict, ticker: str,
     llm_catalysts = _filter_catalysts(v.catalyst_calendar, today)
 
     # Ensure every REAL_CATALYSTS entry is present even if the LLM dropped it.
-    real_keys = {(c["date"], c["event"]) for c in real_catalysts}
     have_keys = {(e.date.isoformat(), e.event) for e in llm_catalysts}
     for c in real_catalysts:
         if (c["date"], c["event"]) not in have_keys:
@@ -172,12 +175,20 @@ def _stamp_deterministic(v: OrchestratorVerdict, ticker: str,
             ))
     llm_catalysts.sort(key=lambda e: e.date)
 
+    # Rule 3 of the prompt, enforced: a call against the score needs a reason.
+    red_flags = list(v.red_flags)
+    if (_SIGN[v.final_recommendation] * weighted < 0
+            and not v.weight_overrides_rationale):
+        red_flags.append(_UNEXPLAINED_DEPARTURE)
+
     return v.model_copy(update={
         "ticker": ticker,
-        "run_timestamp": datetime.utcnow(),
+        "run_timestamp": datetime.now(timezone.utc),
         "current_price": current_price,
         "weighted_score": weighted,
-        "weights_used": v.weights_used or AGENT_WEIGHTS,
+        "price_target_6mo": conviction_weighted_target(verdicts),
+        "weights_used": v.weights_used if _valid_weights(v.weights_used) else AGENT_WEIGHTS,
+        "red_flags": red_flags,
         "agent_verdicts": verdicts,
         "catalyst_calendar": llm_catalysts,
     })
@@ -187,7 +198,7 @@ async def run(ticker: str, verdicts: list[AgentVerdict],
               current_price: float) -> OrchestratorVerdict:
     weighted = compute_weighted_score(verdicts, AGENT_WEIGHTS)
     today = date.today()
-    real_catalysts = get_real_catalysts(ticker, today)
+    real_catalysts = await asyncio.to_thread(get_real_catalysts, ticker, today)
     try:
         result = await Runner.run(
             _agent,
