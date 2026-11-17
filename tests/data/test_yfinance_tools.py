@@ -1,8 +1,11 @@
+from datetime import date
+
 import numpy as np
 import pandas as pd
 import pytest
 
 from equity_trader.data import yfinance_tools as yft
+from equity_trader.data.cache import reset_run_cache
 from equity_trader.exceptions import TickerNotFoundError
 
 
@@ -148,3 +151,14 @@ def test_relative_strength_measures_ticker_and_peers_over_the_same_window(monkey
     out = yft.compute_factor_loads("NVDA", peers=["AMD"])
     assert out["rel_strength_vs_peers"] == pytest.approx(1.0)
     assert out["as_of"] == idx[-1].date().isoformat()
+
+
+def test_valuation_and_analyst_targets_are_dated(monkeypatch):
+    class FakeTicker:
+        info = {"trailingPE": 19.5, "targetMeanPrice": 267.65}
+
+    reset_run_cache()
+    monkeypatch.setattr(yft.yf, "Ticker", lambda t: FakeTicker())
+    today = date.today().isoformat()
+    assert yft.get_valuation("NVDA")["as_of"] == today
+    assert yft.get_analyst_targets("NVDA")["as_of"] == today

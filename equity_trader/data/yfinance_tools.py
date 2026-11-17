@@ -78,6 +78,7 @@ def get_valuation(ticker: str) -> dict:
         "ev_to_ebitda": info.get("enterpriseToEbitda"),
         "peg": info.get("trailingPegRatio"),
         "price_to_sales": info.get("priceToSalesTrailing12Months"),
+        "as_of": date.today().isoformat(),
     }
 
 
@@ -91,6 +92,7 @@ def get_analyst_targets(ticker: str) -> dict:
         "low_target": info.get("targetLowPrice"),
         "num_analysts": info.get("numberOfAnalystOpinions"),
         "recommendation": info.get("recommendationKey"),
+        "as_of": date.today().isoformat(),
     }
 
 
