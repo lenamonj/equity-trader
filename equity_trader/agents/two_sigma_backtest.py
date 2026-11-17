@@ -129,6 +129,8 @@ def backtest_rules(ticker: str) -> dict:
         "history_start": df.index[0].date().isoformat(),
         "cost_assumption": COST,
         "tests_run": len(rules) * len(HOLDS),
+        "how_to_read": ("Returns are in the rule's own direction. A short rule loses what "
+                        "the stock gains, so its worst_trade can be below -100%."),
         "buy_and_hold_annual_return": num((close.iloc[-1] / close.iloc[0]) ** (1 / years) - 1.0),
         "rules": rules,
         "same_rules_63d_elsewhere": elsewhere,
