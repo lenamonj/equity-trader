@@ -1,12 +1,37 @@
 import time
 from datetime import date
+from functools import wraps
 
 import pandas as pd
 import yfinance as yf
+from yfinance.data import YfData
 
 from equity_trader.data.cache import cached_for_run
 from equity_trader.data.util import iso, num
 from equity_trader.exceptions import DataFetchError, TickerNotFoundError
+
+# yfinance hands back a refused request as an empty result, which then reads
+# as "no options listed" or "no estimates". A request Yahoo still refuses
+# after yfinance's own retry gets one more try after a pause, then raises.
+_REFUSED = {401, 403, 429}
+_RETRY_PAUSE = 2.0  # seconds
+
+
+def _refusals_raise(make_request):
+    @wraps(make_request)
+    def checked(self, url, *args, **kwargs):
+        response = make_request(self, url, *args, **kwargs)
+        if response.status_code in _REFUSED:
+            time.sleep(_RETRY_PAUSE)
+            response = make_request(self, url, *args, **kwargs)
+        if response.status_code in _REFUSED:
+            raise DataFetchError(
+                f"Yahoo refused {url.split('?')[0]} with HTTP {response.status_code}")
+        return response
+    return checked
+
+
+YfData._make_request = _refusals_raise(YfData._make_request)
 
 _LAST_CALL = {"t": 0.0}
 _MIN_INTERVAL = 0.1  # seconds

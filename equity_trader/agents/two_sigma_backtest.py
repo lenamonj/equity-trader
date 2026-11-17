@@ -2,9 +2,9 @@ import logging
 
 import numpy as np
 import pandas as pd
-from agents import Runner, function_tool
+from agents import Runner
 
-from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
 from equity_trader.agents.shared_tools import SHARED_TOOLS
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import yfinance_tools as yft
@@ -137,7 +137,7 @@ def backtest_rules(ticker: str) -> dict:
     }
 
 
-@function_tool
+@desk_tool
 def tool_backtest_rules(ticker: str) -> dict:
     """Eleven long and short trading rules run over the stock's full history at
     20, 63 and 126 session holds: trades, hit rate, edge over the baseline after

@@ -1,6 +1,6 @@
-from agents import Runner, function_tool
+from agents import Runner
 
-from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
 from equity_trader.agents.shared_tools import SHARED_TOOLS, tool_get_estimates
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import company_tools, market_tools
@@ -9,7 +9,7 @@ from equity_trader.schemas import AgentVerdict
 AGENT_NAME = "citadel_quant"
 
 
-@function_tool
+@desk_tool
 def tool_get_factor_scorecard(ticker: str) -> dict:
     """Value, quality, growth, momentum and low-volatility metrics for the
     ticker and its five largest industry peers. Each metric has the ticker's
@@ -17,14 +17,14 @@ def tool_get_factor_scorecard(ticker: str) -> dict:
     return company_tools.get_factor_scorecard(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_risk_stats(ticker: str) -> dict:
     """One-year return, volatility, drawdown, skew, beta and correlation to the
     S&P 500, and how much of the stock's risk is specific to it."""
     return company_tools.get_risk_stats(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_style_board() -> dict:
     """Momentum, quality, value, low-volatility and small-cap ETFs against the
     S&P 500 over 1, 3 and 6 months: which styles the market is paying for."""

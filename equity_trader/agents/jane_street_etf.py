@@ -1,6 +1,6 @@
-from agents import Runner, function_tool
+from agents import Runner
 
-from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
 from equity_trader.agents.shared_tools import (
     SHARED_TOOLS,
     tool_get_index_event_calendar,
@@ -15,14 +15,14 @@ from equity_trader.schemas import AgentVerdict
 AGENT_NAME = "jane_street_etf"
 
 
-@function_tool
+@desk_tool
 def tool_get_etf_landscape(ticker: str) -> dict:
     """The ticker, its sector ETF and SPY over 1, 3 and 6 months, the ticker's
     beta to each, and recent volume against its 60-day average."""
     return yft.get_etf_landscape(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_etf_exposure(ticker: str) -> dict:
     """The stock's weight and rank in SPY, QQQ, its sector ETF and the largest
     ETFs in its sector, each fund's assets and volume against average, plus

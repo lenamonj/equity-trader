@@ -1,6 +1,6 @@
-from agents import Runner, function_tool
+from agents import Runner
 
-from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
 from equity_trader.agents.shared_tools import SHARED_TOOLS
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import pattern_tools
@@ -9,14 +9,14 @@ from equity_trader.schemas import AgentVerdict
 AGENT_NAME = "renaissance_pattern"
 
 
-@function_tool
+@desk_tool
 def tool_get_seasonality(ticker: str) -> dict:
     """Calendar effects over the stock's full history: average return, hit rate
     and t-statistic by month and by weekday, and the turn-of-month effect."""
     return pattern_tools.seasonality(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_earnings_event_study(ticker: str) -> dict:
     """How the stock traded around each past earnings report: the five days
     before, the reaction day, and 5, 20 and 60 days after, split by whether the
@@ -24,7 +24,7 @@ def tool_get_earnings_event_study(ticker: str) -> dict:
     return pattern_tools.earnings_event_study(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_forward_return_study(ticker: str) -> dict:
     """What followed in the stock's own history: returns over 5 to 126 sessions
     after two-sigma daily shocks, and over 63 and 126 sessions after days that
@@ -32,7 +32,7 @@ def tool_get_forward_return_study(ticker: str) -> dict:
     return pattern_tools.forward_return_study(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_volatility_and_gaps(ticker: str) -> dict:
     """The volatility regime and its percentile, volatility clustering, return
     autocorrelation at daily, weekly and monthly lags, forward returns by

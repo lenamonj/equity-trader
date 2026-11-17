@@ -8,6 +8,7 @@ from equity_trader import orchestrator
 from equity_trader.agents import ALL_AGENTS
 from equity_trader.data.cache import reset_run_cache
 from equity_trader.data.yfinance_tools import get_quote
+from equity_trader.gatherer import gather
 from equity_trader.persistence import persist
 from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
 
@@ -71,11 +72,22 @@ async def _run_one(name: str, fn: Callable[[str], Awaitable[AgentVerdict]],
 async def analyze_ticker(
     ticker: str,
     on_verdict: Callable[[AgentVerdict], None] | None = None,
+    on_gathered: Callable[[list[dict]], None] | None = None,
 ) -> OrchestratorVerdict:
-    """Run the committee. `on_verdict` is called as each desk reports."""
+    """Run the committee: the gatherer, then the desks, then the chair.
+
+    `on_gathered` is called with the gatherer's report once the data is in,
+    and `on_verdict` as each desk reports.
+    """
     reset_run_cache()
     quote = await asyncio.to_thread(get_quote, ticker)
     current_price = quote["last_price"]
+
+    # The desks read from the run cache this fills, so they start with the
+    # data in hand and do not all call the providers at the same moment.
+    report = await asyncio.to_thread(gather, ticker)
+    if on_gathered:
+        on_gathered(report)
 
     sem = asyncio.Semaphore(_AGENT_CONCURRENCY)
 

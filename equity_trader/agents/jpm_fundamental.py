@@ -1,8 +1,8 @@
 import logging
 
-from agents import Runner, function_tool
+from agents import Runner
 
-from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
 from equity_trader.agents.shared_tools import SHARED_TOOLS, tool_get_estimates
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import company_tools
@@ -31,7 +31,7 @@ def get_fundamentals(ticker: str) -> dict:
     return {**statements, "valuation": yft.get_valuation(ticker)}
 
 
-@function_tool
+@desk_tool
 def tool_get_fundamentals(ticker: str) -> dict:
     """Financial statements as filed with the SEC (five fiscal years, six
     quarters) with margins, growth and coverage ratios computed, a growth and
@@ -39,28 +39,28 @@ def tool_get_fundamentals(ticker: str) -> dict:
     return get_fundamentals(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_earnings_release(ticker: str) -> dict:
     """The company's latest earnings release and commentary from its 8-K: the
     opening of each exhibit and its outlook section, where guidance is stated."""
     return edg.get_earnings_release(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_analyst_view(ticker: str) -> dict:
     """Analyst price targets, the buy/hold/sell mix over three months, and every
     upgrade, downgrade and target change in the last 90 days."""
     return company_tools.get_analyst_view(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_insider_activity(ticker: str) -> dict:
     """Open-market insider sales and purchases over six months, the ten most
     recent insider transactions, and the top institutional holders."""
     return company_tools.get_insider_activity(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_recent_8ks(ticker: str) -> list[dict]:
     """The five most recent 8-K current reports: filing date, named items and
     the text of each filing."""

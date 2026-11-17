@@ -50,7 +50,8 @@ def test_loading_card_shows_calls_of_desks_that_reported():
 
 @pytest.mark.asyncio
 async def test_analyze_streams_progress_then_the_report(monkeypatch):
-    async def fake_run(ticker, on_verdict=None):
+    async def fake_run(ticker, on_verdict=None, on_gathered=None):
+        on_gathered([])
         for name in AGENT_NAMES:
             on_verdict(_desk(name))
         return _verdict()
@@ -58,12 +59,14 @@ async def test_analyze_streams_progress_then_the_report(monkeypatch):
     monkeypatch.setattr(app, "analyze_ticker", fake_run)
     pages = [page async for page in app.analyze(" nvda ")]
     assert "Convening the committee on NVDA" in pages[0]
+    assert "The gatherer is collecting the data" in pages[0]
+    assert "Eight specialists at work" in pages[1]
     assert "verdict-card" in pages[-1]
 
 
 @pytest.mark.asyncio
 async def test_analyze_shows_an_error_card_for_an_unknown_ticker(monkeypatch):
-    async def fake_run(ticker, on_verdict=None):
+    async def fake_run(ticker, on_verdict=None, on_gathered=None):
         raise TickerNotFoundError(ticker)
 
     monkeypatch.setattr(app, "analyze_ticker", fake_run)

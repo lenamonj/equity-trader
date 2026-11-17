@@ -1,10 +1,13 @@
 import os
+from collections.abc import Callable
 
 from agents import (
     Agent,
     AgentOutputSchema,
+    FunctionTool,
     OpenAIChatCompletionsModel,
     OpenAIResponsesModel,
+    function_tool,
 )
 from openai import AsyncOpenAI
 
@@ -21,6 +24,17 @@ _ENV_KEYS = {
     "deepseek": "DEEPSEEK_API_KEY",
     "gemini": "GOOGLE_API_KEY",
 }
+
+
+# Tool name -> the plain function behind it. The gatherer calls these
+# directly to fetch a run's data before any desk starts.
+TOOL_FUNCTIONS: dict[str, Callable] = {}
+
+
+def desk_tool(function: Callable) -> FunctionTool:
+    """A function tool for a desk that the gatherer can also call."""
+    TOOL_FUNCTIONS[function.__name__] = function
+    return function_tool(function)
 
 
 def _client_for(spec: ModelSpec) -> AsyncOpenAI:

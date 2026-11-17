@@ -1,6 +1,6 @@
-from agents import Runner, function_tool
+from agents import Runner
 
-from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
 from equity_trader.agents.shared_tools import SHARED_TOOLS, tool_get_sector_rotation
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import market_tools
@@ -9,21 +9,21 @@ from equity_trader.schemas import AgentVerdict
 AGENT_NAME = "bridgewater_macro"
 
 
-@function_tool
+@desk_tool
 def tool_get_macro_sensitivity(ticker: str) -> dict:
     """How the stock has moved week by week with the S&P 500, the 10-year
     yield, high yield spreads, the dollar, oil and the VIX over three years."""
     return market_tools.macro_sensitivity(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_stress_history(ticker: str) -> dict:
     """The stock's return against the market in the 2008, late 2018, 2020 and
     2022 drawdowns, and the five worst declines in its own history."""
     return market_tools.stress_history(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_cross_asset_board() -> dict:
     """One, three and six month returns for stocks, small caps, Treasuries,
     high yield, gold, copper, oil and the dollar."""

@@ -6,6 +6,11 @@ from equity_trader import runner as run_mod
 from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
 
 
+@pytest.fixture(autouse=True)
+def _no_gathering(monkeypatch):
+    monkeypatch.setattr(run_mod, "gather", lambda ticker: [])
+
+
 def _v(name, rec="BUY", conv=6, err=None):
     return AgentVerdict(agent=name, ticker="NVDA", recommendation=rec,
                         conviction=conv, thesis=["x"], risks=["y"],
@@ -110,3 +115,26 @@ async def test_analyze_ticker_reports_each_desk_as_it_finishes(monkeypatch):
     seen = []
     await run_mod.analyze_ticker("NVDA", on_verdict=seen.append)
     assert sorted(v.agent for v in seen) == sorted(AGENT_NAMES)
+
+
+@pytest.mark.asyncio
+async def test_the_gatherer_runs_before_any_desk(monkeypatch):
+    order = []
+
+    async def desk(ticker):
+        order.append("desk")
+        return _v("jpm_fundamental")
+
+    def gather(ticker):
+        order.append("gather")
+        return [{"tool": "tool_x", "seconds": 0.1, "error": None}]
+
+    monkeypatch.setattr(run_mod, "ALL_AGENTS", [("jpm_fundamental", desk)])
+    monkeypatch.setattr(run_mod, "get_quote", lambda t: {"last_price": 190.0})
+    monkeypatch.setattr(run_mod, "gather", gather)
+    monkeypatch.setattr(run_mod.orchestrator, "run", AsyncMock(return_value="final"))
+    monkeypatch.setattr(run_mod, "persist", lambda v, **kw: "run-id")
+    reports = []
+    await run_mod.analyze_ticker("NVDA", on_gathered=reports.append)
+    assert order == ["gather", "desk"]
+    assert reports == [[{"tool": "tool_x", "seconds": 0.1, "error": None}]]

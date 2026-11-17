@@ -1,6 +1,6 @@
-from agents import Runner, function_tool
+from agents import Runner
 
-from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
 from equity_trader.agents.shared_tools import SHARED_TOOLS, tool_get_index_event_calendar
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import options_tools
@@ -9,7 +9,7 @@ from equity_trader.schemas import AgentVerdict
 AGENT_NAME = "de_shaw_options"
 
 
-@function_tool
+@desk_tool
 def tool_get_options_surface(ticker: str) -> dict:
     """Up to six expiries from one week to one year. For each: at-the-money
     implied volatility, the implied move, skew between the 90% put and the 110%
@@ -18,7 +18,7 @@ def tool_get_options_surface(ticker: str) -> dict:
     return options_tools.options_surface(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_volatility_premium(ticker: str) -> dict:
     """Implied volatility at one and three months against realized volatility
     over 20, 60 and 120 days, and the implied move over the next earnings
@@ -26,14 +26,14 @@ def tool_get_volatility_premium(ticker: str) -> dict:
     return options_tools.volatility_premium(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_options_chain(ticker: str) -> dict:
     """Prices, implied volatility, open interest and volume for the expiry
     inside the 3-6 month horizon, for strikes within 20% of the stock price."""
     return options_tools.options_chain_near_money(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_market_volatility() -> dict:
     """VIX at 9 days, 30 days and 3 months, the SKEW index and the MOVE index:
     level, one-month change and one-year percentile, and the VIX term structure."""

@@ -138,7 +138,8 @@ def _welcome_html() -> str:
     """
 
 
-def _loading_html(ticker: str, reported: dict[str, AgentVerdict] | None = None) -> str:
+def _loading_html(ticker: str, reported: dict[str, AgentVerdict] | None = None,
+                  gathered: bool = True) -> str:
     """Loading card. Desks that have reported show their call."""
     reported = reported or {}
     chips = []
@@ -156,8 +157,10 @@ def _loading_html(ticker: str, reported: dict[str, AgentVerdict] | None = None) 
         stage = "All desks reported . the chair is writing the memo"
     elif reported:
         stage = f"{len(reported)} of {len(_AGENT_PERSONAS)} desks reported"
-    else:
+    elif gathered:
         stage = "Eight specialists at work, three at a time"
+    else:
+        stage = "The gatherer is collecting the data"
     return f"""
     <div class="loading-card">
       <div class="loading-mark"></div>
@@ -422,15 +425,19 @@ async def analyze(ticker: str):
         return
     ticker = ticker.strip().upper()
     reported: dict[str, AgentVerdict] = {}
-    updates: asyncio.Queue[AgentVerdict] = asyncio.Queue()
-    task = asyncio.create_task(analyze_ticker(ticker, on_verdict=updates.put_nowait))
-    yield _loading_html(ticker)
+    # A desk's verdict as it reports, or None when the gatherer has finished.
+    updates: asyncio.Queue[AgentVerdict | None] = asyncio.Queue()
+    task = asyncio.create_task(analyze_ticker(
+        ticker, on_verdict=updates.put_nowait,
+        on_gathered=lambda report: updates.put_nowait(None)))
+    yield _loading_html(ticker, gathered=False)
     while not task.done():
         try:
             av = await asyncio.wait_for(updates.get(), timeout=0.5)
         except TimeoutError:
             continue
-        reported[av.agent] = av
+        if av is not None:
+            reported[av.agent] = av
         yield _loading_html(ticker, reported)
     try:
         yield _render_report(task.result())

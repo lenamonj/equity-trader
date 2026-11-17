@@ -1,6 +1,6 @@
-from agents import Runner, function_tool
+from agents import Runner
 
-from equity_trader.agents.base import build_agent, shared_rules_block
+from equity_trader.agents.base import build_agent, desk_tool, shared_rules_block
 from equity_trader.agents.shared_tools import SHARED_TOOLS, tool_get_relative_strength
 from equity_trader.config import AGENT_MODELS
 from equity_trader.data import technical_tools
@@ -10,7 +10,7 @@ from equity_trader.schemas import AgentVerdict
 AGENT_NAME = "gs_technical"
 
 
-@function_tool
+@desk_tool
 def tool_get_price_history(ticker: str) -> list[dict]:
     """The last 120 daily bars (open, high, low, close, volume) for reading
     chart patterns."""
@@ -19,7 +19,7 @@ def tool_get_price_history(ticker: str) -> list[dict]:
     return out.assign(Date=lambda d: d["Date"].astype(str).str[:10]).to_dict(orient="records")
 
 
-@function_tool
+@desk_tool
 def tool_compute_technicals(ticker: str) -> dict:
     """Trend and momentum on daily, weekly and monthly bars: 20, 50, 100 and
     200-day averages with slopes, the last 50/200 cross, RSI, MACD, Bollinger
@@ -27,7 +27,7 @@ def tool_compute_technicals(ticker: str) -> dict:
     return technical_tools.compute_technicals(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_key_levels(ticker: str) -> dict:
     """Support and resistance from the last year: swing highs and lows, 52-week
     and all-time highs, the heaviest volume zones and unfilled gaps, each with
@@ -35,7 +35,7 @@ def tool_get_key_levels(ticker: str) -> dict:
     return technical_tools.key_levels(ticker)
 
 
-@function_tool
+@desk_tool
 def tool_get_volume_analysis(ticker: str) -> dict:
     """Whether volume confirms the trend: up against down volume, on-balance
     volume, accumulation and distribution days, and the heaviest recent days."""

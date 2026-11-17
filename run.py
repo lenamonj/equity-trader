@@ -80,7 +80,10 @@ def main() -> None:
     ticker = parser.parse_args().ticker.upper()
 
     reported = 0
-    with console.status(f"Convening the committee on {ticker}") as status:
+    with console.status(f"Convening the committee on {ticker}: gathering data") as status:
+        def on_gathered(_) -> None:
+            status.update(f"Convening the committee on {ticker}: eight desks at work")
+
         def on_verdict(_) -> None:
             nonlocal reported
             reported += 1
@@ -89,7 +92,8 @@ def main() -> None:
             status.update(f"Convening the committee on {ticker}: {stage}")
 
         try:
-            v = asyncio.run(analyze_ticker(ticker, on_verdict=on_verdict))
+            v = asyncio.run(analyze_ticker(ticker, on_verdict=on_verdict,
+                                           on_gathered=on_gathered))
         except DataFetchError as exc:
             console.print(f"[bold red]{exc}[/]")
             sys.exit(1)
