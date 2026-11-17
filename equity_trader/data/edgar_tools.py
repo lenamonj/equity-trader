@@ -1,9 +1,10 @@
 import os
 import time
+
 import httpx
 
 from equity_trader.data.cache import cached_for_run
-from equity_trader.exceptions import TickerNotFoundError, DataFetchError
+from equity_trader.exceptions import DataFetchError, TickerNotFoundError
 
 _BASE = "https://www.sec.gov"
 _DATA = "https://data.sec.gov"

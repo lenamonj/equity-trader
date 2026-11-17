@@ -1,5 +1,6 @@
-import pytest
 import pandas as pd
+import pytest
+
 from equity_trader.data import fred_tools as ft
 from equity_trader.data.cache import reset_run_cache
 

@@ -19,7 +19,7 @@ from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 from fontTools.varLib.instancer import instantiateVariableFont
 
-from equity_trader.config import AGENT_WEIGHTS
+from equity_trader.config import AGENT_PERSONAS, AGENT_WEIGHTS
 
 OUT = Path(__file__).parent
 W = 1280
@@ -27,7 +27,8 @@ W = 1280
 _FONT_REPO = "https://raw.githubusercontent.com/google/fonts/main/ofl/"
 FONT_URLS = {
     "Fraunces.ttf": _FONT_REPO + "fraunces/Fraunces%5BSOFT%2CWONK%2Copsz%2Cwght%5D.ttf",
-    "Fraunces-Italic.ttf": _FONT_REPO + "fraunces/Fraunces-Italic%5BSOFT%2CWONK%2Copsz%2Cwght%5D.ttf",
+    "Fraunces-Italic.ttf": (_FONT_REPO
+                            + "fraunces/Fraunces-Italic%5BSOFT%2CWONK%2Copsz%2Cwght%5D.ttf"),
     "GeistMono.ttf": _FONT_REPO + "geistmono/GeistMono%5Bwght%5D.ttf",
 }
 
@@ -52,16 +53,7 @@ THEMES = {
                  on_brand="#7A5C24"),
 }
 
-DESKS = [
-    ("jpm_fundamental", "J.P. Morgan", "Fundamental"),
-    ("bridgewater_macro", "Bridgewater Associates", "All-Weather Macro"),
-    ("gs_technical", "Goldman Sachs", "Technical"),
-    ("citadel_quant", "Citadel", "Quantitative"),
-    ("jane_street_etf", "Jane Street", "ETF & Basket Flow"),
-    ("de_shaw_options", "D. E. Shaw", "Options-Derived"),
-    ("renaissance_pattern", "Renaissance Technologies", "Pattern Recognition"),
-    ("two_sigma_backtest", "Two Sigma", "Backtest Sanity"),
-]
+DESKS = [(key, house, discipline) for key, (house, discipline) in AGENT_PERSONAS.items()]
 
 
 class Face:
@@ -84,7 +76,7 @@ class Face:
         hb.shape(self.hb, buf)
         x = 0.0
         placed = []
-        for info, pos in zip(buf.glyph_infos, buf.glyph_positions):
+        for info, pos in zip(buf.glyph_infos, buf.glyph_positions, strict=True):
             placed.append((self.order[info.codepoint], x + pos.x_offset, pos.y_offset))
             x += pos.x_advance + tracking * self.upm
         return placed, x - tracking * self.upm
@@ -161,7 +153,8 @@ def banner(f: dict, t: dict) -> str:
 def committee(f: dict, t: dict) -> str:
     b = [
         f["mono"].draw("THE COMMITTEE", 56, 62, 11, t["ink4"], tracking=0.18),
-        f["mono"].draw("FIXED WEIGHTS, SUM TO 100", W - 56, 62, 11, t["ink4"], "end", tracking=0.18),
+        f["mono"].draw("FIXED WEIGHTS, SUM TO 100", W - 56, 62, 11, t["ink4"], "end",
+                       tracking=0.18),
         line(56, 80, W - 56, 80, t["border"]),
     ]
     cw, ch, gap = 277, 176, 20
@@ -238,7 +231,8 @@ def architecture(f: dict, t: dict) -> str:
         f["display"].draw("Buy / Hold / Sell", 1036, oc - 6, 23, t["bg"], max_width=166),
         f["text"].draw("Conviction, target,", 1036, oc + 26, 13.5, t["on_brand"]),
         f["text"].draw("sizing, stop loss", 1036, oc + 46, 13.5, t["on_brand"]),
-        f["mono"].draw("SQLITE + JSON SNAPSHOT", 1119, oc + 104, 9, t["ink4"], "middle", tracking=0.14),
+        f["mono"].draw("SQLITE + JSON SNAPSHOT", 1119, oc + 104, 9, t["ink4"], "middle",
+                       tracking=0.14),
     ]
     return svg(540, "Architecture: a ticker fans out to eight specialist agents, three at a "
                     "time, sharing one data cache; the orchestrator combines a deterministic "

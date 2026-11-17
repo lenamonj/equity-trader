@@ -1,4 +1,4 @@
-from equity_trader.agents import ALL_AGENTS, AGENT_NAMES
+from equity_trader.agents import AGENT_NAMES, ALL_AGENTS
 
 
 def test_eight_agents():

@@ -1,9 +1,11 @@
-import pytest
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from unittest.mock import AsyncMock, patch
-from equity_trader.schemas import AgentVerdict, CatalystEvent, OrchestratorVerdict
+
+import pytest
+
 from equity_trader import orchestrator as orch
 from equity_trader.config import AGENT_WEIGHTS
+from equity_trader.schemas import AgentVerdict, CatalystEvent, OrchestratorVerdict
 
 
 def _v(agent, rec, conv=7, tgt=200.0, err=None):
@@ -32,7 +34,7 @@ async def test_orchestrator_run_returns_orchestrator_verdict():
         _v("two_sigma_backtest", "HOLD", 4, None),
     ]
     fake = OrchestratorVerdict(
-        ticker="NVDA", run_timestamp=datetime.now(timezone.utc), current_price=190.0,
+        ticker="NVDA", run_timestamp=datetime.now(UTC), current_price=190.0,
         final_recommendation="BUY", conviction=7, price_target_6mo=210.0,
         weighted_score=3.55, weights_used={"jpm_fundamental": 25.0},
         score_departure_rationale=None,
@@ -143,7 +145,7 @@ async def test_orchestrator_drops_out_of_window_catalysts(monkeypatch):
                          lambda ticker, t: [])
 
     hallucinated = OrchestratorVerdict(
-        ticker="AVGO", run_timestamp=datetime.now(timezone.utc), current_price=300.0,
+        ticker="AVGO", run_timestamp=datetime.now(UTC), current_price=300.0,
         final_recommendation="HOLD", conviction=5, price_target_6mo=320.0,
         weighted_score=2.0, weights_used={"jpm_fundamental": 100.0},
         score_departure_rationale=None,
@@ -181,7 +183,7 @@ async def test_orchestrator_injects_real_catalysts_even_if_llm_drops_them(monkey
     ])
 
     no_calendar = OrchestratorVerdict(
-        ticker="AVGO", run_timestamp=datetime.now(timezone.utc), current_price=300.0,
+        ticker="AVGO", run_timestamp=datetime.now(UTC), current_price=300.0,
         final_recommendation="BUY", conviction=7, price_target_6mo=320.0,
         weighted_score=4.0, weights_used={"jpm_fundamental": 100.0},
         score_departure_rationale=None,

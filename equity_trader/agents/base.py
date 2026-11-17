@@ -1,11 +1,14 @@
 import os
-from openai import AsyncOpenAI
+
 from agents import (
-    Agent, AgentOutputSchema, OpenAIChatCompletionsModel, OpenAIResponsesModel,
+    Agent,
+    AgentOutputSchema,
+    OpenAIChatCompletionsModel,
+    OpenAIResponsesModel,
 )
+from openai import AsyncOpenAI
 
 from equity_trader.config import ModelSpec
-
 
 _BASE_URLS = {
     "groq": "https://api.groq.com/openai/v1",

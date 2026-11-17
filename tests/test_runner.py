@@ -1,7 +1,9 @@
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, patch
-from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
+
 from equity_trader import runner as run_mod
+from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
 
 
 def _v(name, rec="BUY", conv=6, err=None):
@@ -13,6 +15,7 @@ def _v(name, rec="BUY", conv=6, err=None):
 @pytest.mark.asyncio
 async def test_analyze_ticker_calls_all_agents_then_orchestrator(monkeypatch, tmp_path):
     from datetime import datetime
+
     from equity_trader.agents import AGENT_NAMES
 
     async def fake_agent_run(t):
@@ -24,8 +27,7 @@ async def test_analyze_ticker_calls_all_agents_then_orchestrator(monkeypatch, tm
         fake_funcs.append((n, f))
     monkeypatch.setattr(run_mod, "ALL_AGENTS", fake_funcs)
 
-    fake_quote = lambda t: {"last_price": 190.0, "market_cap": 0, "day_high": 0, "day_low": 0}
-    monkeypatch.setattr(run_mod, "get_quote", fake_quote)
+    monkeypatch.setattr(run_mod, "get_quote", lambda t: {"last_price": 190.0})
 
     fake_orch = OrchestratorVerdict(
         ticker="NVDA", run_timestamp=datetime.utcnow(), current_price=190.0,
@@ -49,6 +51,7 @@ async def test_analyze_ticker_calls_all_agents_then_orchestrator(monkeypatch, tm
 @pytest.mark.asyncio
 async def test_analyze_ticker_survives_one_agent_failure(monkeypatch):
     from datetime import datetime
+
     from equity_trader.agents import AGENT_NAMES
 
     async def good(t):
@@ -90,3 +93,20 @@ async def test_model_written_error_note_does_not_mark_the_desk_failed():
     assert out.error_note is None
     assert out.agent == "jpm_fundamental"
     assert out.risks == ["y", "Filing contents were unavailable."]
+
+
+@pytest.mark.asyncio
+async def test_analyze_ticker_reports_each_desk_as_it_finishes(monkeypatch):
+    from equity_trader.agents import AGENT_NAMES
+
+    async def good(t):
+        return _v("x")
+
+    monkeypatch.setattr(run_mod, "ALL_AGENTS", [(n, good) for n in AGENT_NAMES])
+    monkeypatch.setattr(run_mod, "get_quote", lambda t: {"last_price": 190.0})
+    monkeypatch.setattr(run_mod.orchestrator, "run", AsyncMock(return_value="final"))
+    monkeypatch.setattr(run_mod, "persist", lambda v, **kw: "run-id")
+
+    seen = []
+    await run_mod.analyze_ticker("NVDA", on_verdict=seen.append)
+    assert sorted(v.agent for v in seen) == sorted(AGENT_NAMES)

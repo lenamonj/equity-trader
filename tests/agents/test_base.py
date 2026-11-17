@@ -1,7 +1,8 @@
 import pytest
 from agents import OpenAIChatCompletionsModel, OpenAIResponsesModel
+
+from equity_trader.agents.base import _client_for, build_agent, shared_rules_block
 from equity_trader.config import ModelSpec
-from equity_trader.agents.base import build_agent, _client_for, shared_rules_block
 
 
 def test_client_for_openai(monkeypatch):

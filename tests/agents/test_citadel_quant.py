@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import AsyncMock, patch
-from equity_trader.schemas import AgentVerdict
+
+import pytest
+
 from equity_trader.agents import citadel_quant as mod
+from equity_trader.schemas import AgentVerdict
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from contextvars import ContextVar
 from functools import wraps
-from typing import Callable, Any
+from typing import Any
 
 _run_cache: ContextVar[dict | None] = ContextVar("run_cache", default=None)
 

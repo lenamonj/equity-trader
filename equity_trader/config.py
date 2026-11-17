@@ -38,3 +38,17 @@ AGENT_WEIGHTS: dict[str, float] = {
 }
 
 ORCHESTRATOR_MODEL = ModelSpec("openai", "gpt-6.1-sol")
+
+# House and discipline shown for each desk, heaviest weight first.
+AGENT_PERSONAS: dict[str, tuple[str, str]] = {
+    "jpm_fundamental":     ("J.P. Morgan",              "Fundamental"),
+    "bridgewater_macro":   ("Bridgewater Associates",   "All-Weather Macro"),
+    "gs_technical":        ("Goldman Sachs",            "Technical"),
+    "citadel_quant":       ("Citadel",                  "Quantitative"),
+    "jane_street_etf":     ("Jane Street",              "ETF & Basket Flow"),
+    "de_shaw_options":     ("D. E. Shaw",               "Options-Derived"),
+    "renaissance_pattern": ("Renaissance Technologies", "Pattern Recognition"),
+    "two_sigma_backtest":  ("Two Sigma",                "Backtest Sanity"),
+}
+
+AGENT_NAMES = list(AGENT_PERSONAS)

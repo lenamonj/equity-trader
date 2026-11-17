@@ -1,9 +1,8 @@
-import pytest
 from equity_trader.exceptions import (
-    DataFetchError,
-    TickerNotFoundError,
-    RateLimitError,
     AgentExecutionError,
+    DataFetchError,
+    RateLimitError,
+    TickerNotFoundError,
 )
 
 

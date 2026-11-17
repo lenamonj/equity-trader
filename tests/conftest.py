@@ -1,4 +1,5 @@
 import os
+
 import pytest
 
 # Set env vars at module level so they are present when agent modules are

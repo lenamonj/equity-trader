@@ -2,10 +2,9 @@ from agents import Runner, function_tool
 
 from equity_trader.agents.base import build_agent, shared_rules_block
 from equity_trader.config import AGENT_MODELS
-from equity_trader.schemas import AgentVerdict
-from equity_trader.data import yfinance_tools as yft
 from equity_trader.data import fred_tools as fred
-
+from equity_trader.data import yfinance_tools as yft
+from equity_trader.schemas import AgentVerdict
 
 AGENT_NAME = "citadel_quant"
 
@@ -93,5 +92,6 @@ agent = build_agent(
 
 
 async def run(ticker: str) -> AgentVerdict:
-    result = await Runner.run(agent, input=f"Analyze {ticker} for a 3-6 month horizon.", max_turns=25)
+    result = await Runner.run(
+        agent, input=f"Analyze {ticker} for a 3-6 month horizon.", max_turns=25)
     return result.final_output

@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Callable, Awaitable
+from collections.abc import Awaitable, Callable
 
 import openai
 
@@ -10,7 +10,6 @@ from equity_trader.data.cache import reset_run_cache
 from equity_trader.data.yfinance_tools import get_quote
 from equity_trader.persistence import persist
 from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
-
 
 log = logging.getLogger(__name__)
 
@@ -70,7 +69,11 @@ async def _run_one(name: str, fn: Callable[[str], Awaitable[AgentVerdict]],
                            last_rate_limit or RuntimeError("retry loop exited"))
 
 
-async def analyze_ticker(ticker: str) -> OrchestratorVerdict:
+async def analyze_ticker(
+    ticker: str,
+    on_verdict: Callable[[AgentVerdict], None] | None = None,
+) -> OrchestratorVerdict:
+    """Run the committee. `on_verdict` is called as each desk reports."""
     reset_run_cache()
     quote = await asyncio.to_thread(get_quote, ticker)
     current_price = quote["last_price"]
@@ -80,7 +83,10 @@ async def analyze_ticker(ticker: str) -> OrchestratorVerdict:
     async def _gated(name: str,
                      fn: Callable[[str], Awaitable[AgentVerdict]]) -> AgentVerdict:
         async with sem:
-            return await _run_one(name, fn, ticker)
+            verdict = await _run_one(name, fn, ticker)
+        if on_verdict:
+            on_verdict(verdict)
+        return verdict
 
     verdicts = await asyncio.gather(
         *(_gated(name, fn) for name, fn in ALL_AGENTS)

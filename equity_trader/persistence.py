@@ -1,9 +1,8 @@
-import json
 import sqlite3
 import uuid
 from pathlib import Path
-from equity_trader.schemas import OrchestratorVerdict
 
+from equity_trader.schemas import OrchestratorVerdict
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (

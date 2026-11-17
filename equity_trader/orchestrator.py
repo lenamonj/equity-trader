@@ -1,6 +1,7 @@
 import asyncio
 import logging
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
+
 from agents import Runner
 
 from equity_trader.agents.base import build_agent
@@ -8,9 +9,10 @@ from equity_trader.config import AGENT_WEIGHTS, ORCHESTRATOR_MODEL
 from equity_trader.data.calendar_tools import get_real_catalysts
 from equity_trader.schemas import AgentVerdict, CatalystEvent, OrchestratorVerdict
 from equity_trader.scoring import (
-    compute_weighted_score, conviction_weighted_target, redistribute_weights,
+    compute_weighted_score,
+    conviction_weighted_target,
+    redistribute_weights,
 )
-
 
 _HORIZON_DAYS = 180
 
@@ -117,7 +119,7 @@ def _mechanical_fallback(ticker: str, verdicts: list[AgentVerdict],
         rec, sizing = "HOLD", "not sizeable"
     return OrchestratorVerdict(
         ticker=ticker,
-        run_timestamp=datetime.now(timezone.utc),
+        run_timestamp=datetime.now(UTC),
         current_price=current_price,
         final_recommendation=rec,
         conviction=min(10, max(1, int(abs(weighted_score) + 1))),
@@ -190,7 +192,7 @@ def _stamp_deterministic(v: OrchestratorVerdict, ticker: str,
 
     return v.model_copy(update={
         "ticker": ticker,
-        "run_timestamp": datetime.now(timezone.utc),
+        "run_timestamp": datetime.now(UTC),
         "current_price": current_price,
         "weighted_score": weighted,
         "price_target_6mo": conviction_weighted_target(verdicts),

@@ -1,4 +1,3 @@
-import pytest
 from equity_trader.schemas import AgentVerdict
 from equity_trader.scoring import compute_weighted_score, redistribute_weights
 
@@ -48,8 +47,8 @@ def test_redistribute_weights():
 
 
 def test_conviction_weighted_target_excludes_missing_and_errored():
-    from equity_trader.scoring import conviction_weighted_target
     from equity_trader.schemas import AgentVerdict
+    from equity_trader.scoring import conviction_weighted_target
 
     def v(conv, tgt, err=None):
         return AgentVerdict(agent="a", ticker="X", recommendation="BUY",

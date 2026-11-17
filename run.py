@@ -1,50 +1,95 @@
 from dotenv import load_dotenv
-load_dotenv()
+
+load_dotenv()  # Must load before importing equity_trader.runner, which builds the agents
 
 import argparse
 import asyncio
+import sys
+
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from equity_trader.config import AGENT_NAMES, AGENT_PERSONAS
+from equity_trader.exceptions import DataFetchError
 from equity_trader.runner import analyze_ticker
+from equity_trader.schemas import OrchestratorVerdict
 
 console = Console()
 
+_REC_STYLE = {"BUY": "bold green", "HOLD": "bold yellow", "SELL": "bold red"}
 
-def render(v) -> None:
-    table = Table(title=f"{v.ticker}  |  {v.final_recommendation}  |  Conviction {v.conviction}")
-    table.add_column("Field")
-    table.add_column("Value")
-    table.add_row("Current price", f"${v.current_price:,.2f}")
-    if v.price_target_6mo:
-        table.add_row("6mo target", f"${v.price_target_6mo:,.2f}")
-    table.add_row("Weighted score", f"{v.weighted_score:.2f}")
-    table.add_row("Position sizing", v.position_sizing_suggestion)
+
+def _usd(x: float | None) -> str:
+    return f"${x:,.2f}" if x else "-"
+
+
+def _bullets(title: str, items: list[str], style: str = "bold") -> None:
+    if items:
+        console.print(f"\n[{style}]{title}[/]")
+        for item in items:
+            console.print(f"  - {item}")
+
+
+def render(v: OrchestratorVerdict) -> None:
+    rec = f"[{_REC_STYLE[v.final_recommendation]}]{v.final_recommendation}[/]"
+    summary = Table.grid(padding=(0, 3))
+    summary.add_row("Current price", _usd(v.current_price))
+    summary.add_row("6-month target", _usd(v.price_target_6mo))
+    summary.add_row("Committee score", f"{v.weighted_score:+.2f}  (range -10 to +10)")
+    summary.add_row("Position sizing", v.position_sizing_suggestion)
     if v.stop_loss_level:
-        table.add_row("Stop loss", f"${v.stop_loss_level:,.2f}")
-    console.print(table)
-    console.print(Panel(v.synthesis, title="Synthesis"))
-    if v.key_agreements:
-        console.print("[bold]Agreements:[/]")
-        for a in v.key_agreements:
-            console.print(f"  - {a}")
-    if v.key_disagreements:
-        console.print("[bold]Disagreements:[/]")
-        for d in v.key_disagreements:
-            console.print(f"  - {d}")
-    if v.red_flags:
-        console.print("[bold red]Red flags:[/]")
-        for r in v.red_flags:
-            console.print(f"  - {r}")
+        summary.add_row("Stop loss", _usd(v.stop_loss_level))
+    console.print(Panel(summary, title=f"{v.ticker}  |  {rec}  |  conviction {v.conviction}/10",
+                        title_align="left"))
+
+    console.print(Panel(v.synthesis, title="Investment memo", title_align="left"))
+    if v.score_departure_rationale:
+        console.print(Panel(v.score_departure_rationale, title="Departure from score",
+                            title_align="left"))
+
+    desks = Table(title="Specialist verdicts", title_justify="left")
+    for column in ("Desk", "Discipline", "Call", "Conviction", "Target", "Weight"):
+        desks.add_column(column)
+    by_agent = {a.agent: a for a in v.agent_verdicts}
+    for name in AGENT_NAMES:
+        a = by_agent[name]
+        house, discipline = AGENT_PERSONAS[name]
+        if a.error_note:
+            desks.add_row(house, discipline, "[dim]failed[/]", "-", "-", "-")
+        else:
+            desks.add_row(house, discipline,
+                          f"[{_REC_STYLE[a.recommendation]}]{a.recommendation}[/]",
+                          f"{a.conviction}/10", _usd(a.price_target_6mo),
+                          f"{v.weights_used.get(name, 0):.0f}%")
+    console.print(desks)
+
+    _bullets("Where they agree", v.key_agreements)
+    _bullets("Where they split", v.key_disagreements)
+    _bullets("Red flags", v.red_flags, style="bold red")
+    _bullets("Catalysts", [f"{c.date.isoformat()}  {c.event}  ({c.expected_impact})"
+                           for c in v.catalyst_calendar])
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description="Convene the committee on one ticker.")
     parser.add_argument("ticker")
-    args = parser.parse_args()
-    with console.status(f"Analyzing {args.ticker.upper()}..."):
-        v = asyncio.run(analyze_ticker(args.ticker.upper()))
+    ticker = parser.parse_args().ticker.upper()
+
+    reported = 0
+    with console.status(f"Convening the committee on {ticker}") as status:
+        def on_verdict(_) -> None:
+            nonlocal reported
+            reported += 1
+            stage = ("the chair is writing the memo" if reported == len(AGENT_NAMES)
+                     else f"{reported} of {len(AGENT_NAMES)} desks reported")
+            status.update(f"Convening the committee on {ticker}: {stage}")
+
+        try:
+            v = asyncio.run(analyze_ticker(ticker, on_verdict=on_verdict))
+        except DataFetchError as exc:
+            console.print(f"[bold red]{exc}[/]")
+            sys.exit(1)
     render(v)
 
 

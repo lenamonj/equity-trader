@@ -8,37 +8,26 @@ Two launch modes:
   uv run python app.py     # production: single process, no hot reload
   uv run gradio app.py     # development: hot reload on .py changes
 """
+import asyncio
 import html
+import logging
 from pathlib import Path
-from datetime import datetime
 
 import gradio as gr
 from dotenv import load_dotenv
 
 load_dotenv()  # Must load before importing equity_trader.runner which triggers agent imports
 
+from equity_trader.config import AGENT_NAMES, AGENT_PERSONAS
+from equity_trader.exceptions import DataFetchError
 from equity_trader.persistence import list_runs
 from equity_trader.runner import analyze_ticker
 from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
 
+log = logging.getLogger(__name__)
 
-# Each specialist's house + discipline. Rendered as eyebrow text on the agent cards.
-_AGENT_PERSONAS: dict[str, tuple[str, str]] = {
-    "jpm_fundamental":      ("J.P. Morgan",              "Fundamental"),
-    "bridgewater_macro":    ("Bridgewater Associates",   "All-Weather Macro"),
-    "gs_technical":         ("Goldman Sachs",            "Technical"),
-    "citadel_quant":        ("Citadel",                  "Quantitative"),
-    "jane_street_etf":      ("Jane Street",              "ETF & Basket Flow"),
-    "de_shaw_options":      ("D. E. Shaw",               "Options-Derived"),
-    "renaissance_pattern":  ("Renaissance Technologies", "Pattern Recognition"),
-    "two_sigma_backtest":   ("Two Sigma",                "Backtest Sanity"),
-}
-
-# Default weights order (heaviest first) so the grid reads top-to-bottom by importance.
-_AGENT_ORDER = [
-    "jpm_fundamental", "bridgewater_macro", "gs_technical", "citadel_quant",
-    "jane_street_etf", "de_shaw_options", "renaissance_pattern", "two_sigma_backtest",
-]
+_AGENT_PERSONAS = AGENT_PERSONAS
+_AGENT_ORDER = AGENT_NAMES
 
 
 _CSS_PATH = Path(__file__).parent / "equity_trader" / "ui.css"
@@ -149,16 +138,41 @@ def _welcome_html() -> str:
     """
 
 
-def _loading_html(ticker: str) -> str:
-    roster = "".join(
-        f"<span>{_e(house)}</span>" for house, _ in _AGENT_PERSONAS.values()
-    )
+def _loading_html(ticker: str, reported: dict[str, AgentVerdict] | None = None) -> str:
+    """Loading card. Desks that have reported show their call."""
+    reported = reported or {}
+    chips = []
+    for name, (house, _) in _AGENT_PERSONAS.items():
+        av = reported.get(name)
+        if av is None:
+            chips.append(f"<span>{_e(house)}</span>")
+        elif av.error_note:
+            chips.append(f'<span class="done failed">{_e(house)} . failed</span>')
+        else:
+            chips.append(f'<span class="done {av.recommendation.lower()}">'
+                         f"{_e(house)} . {av.recommendation}</span>")
+    roster = "".join(chips)
+    if len(reported) == len(_AGENT_PERSONAS):
+        stage = "All desks reported . the chair is writing the memo"
+    elif reported:
+        stage = f"{len(reported)} of {len(_AGENT_PERSONAS)} desks reported"
+    else:
+        stage = "Eight specialists at work, three at a time"
     return f"""
     <div class="loading-card">
       <div class="loading-mark"></div>
       <div class="loading-title">Convening the committee on {_e(ticker.upper())}</div>
-      <div class="loading-sub">Eight specialists at work, three at a time</div>
+      <div class="loading-sub">{_e(stage)}</div>
       <div class="loading-roster">{roster}</div>
+    </div>
+    """
+
+
+def _error_html(ticker: str, message: str) -> str:
+    return f"""
+    <div class="loading-card error-card">
+      <div class="loading-title">The committee could not convene on {_e(ticker)}</div>
+      <div class="error-message">{_e(message)}</div>
     </div>
     """
 
@@ -401,17 +415,30 @@ def _render_report(v: OrchestratorVerdict) -> str:
 # Gradio callbacks
 # ============================================================
 
-def _show_loading(ticker: str) -> str:
+async def analyze(ticker: str):
+    """Stream the loading card as desks report, then the finished report."""
     if not ticker or not ticker.strip():
-        return _welcome_html()
-    return _loading_html(ticker.strip())
-
-
-async def analyze(ticker: str) -> str:
-    if not ticker or not ticker.strip():
-        return _welcome_html()
-    v = await analyze_ticker(ticker.strip().upper())
-    return _render_report(v)
+        yield _welcome_html()
+        return
+    ticker = ticker.strip().upper()
+    reported: dict[str, AgentVerdict] = {}
+    updates: asyncio.Queue[AgentVerdict] = asyncio.Queue()
+    task = asyncio.create_task(analyze_ticker(ticker, on_verdict=updates.put_nowait))
+    yield _loading_html(ticker)
+    while not task.done():
+        try:
+            av = await asyncio.wait_for(updates.get(), timeout=0.5)
+        except TimeoutError:
+            continue
+        reported[av.agent] = av
+        yield _loading_html(ticker, reported)
+    try:
+        yield _render_report(task.result())
+    except DataFetchError as exc:
+        yield _error_html(ticker, str(exc))
+    except Exception as exc:
+        log.exception("Run failed for %s", ticker)
+        yield _error_html(ticker, f"{type(exc).__name__}: {exc}")
 
 
 def history_table():
@@ -462,13 +489,8 @@ with gr.Blocks(title="EquityTrader", fill_width=True) as demo:
         with gr.Row(elem_classes="report"):
             report = gr.HTML(_welcome_html())
 
-        # Show loading state instantly on click, then run the real analysis.
-        run_btn.click(_show_loading, inputs=ticker, outputs=report).then(
-            analyze, inputs=ticker, outputs=report
-        )
-        ticker.submit(_show_loading, inputs=ticker, outputs=report).then(
-            analyze, inputs=ticker, outputs=report
-        )
+        run_btn.click(analyze, inputs=ticker, outputs=report)
+        ticker.submit(analyze, inputs=ticker, outputs=report)
 
     with gr.Tab("History"):
         with gr.Row(elem_classes="history-wrap"):

@@ -1,4 +1,4 @@
-from equity_trader.config import AGENT_WEIGHTS, AGENT_MODELS, ORCHESTRATOR_MODEL
+from equity_trader.config import AGENT_MODELS, AGENT_WEIGHTS, ORCHESTRATOR_MODEL
 
 
 def test_weights_sum_to_100():

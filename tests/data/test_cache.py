@@ -1,7 +1,8 @@
 import asyncio
-import pytest
-from equity_trader.data.cache import cached_for_run, reset_run_cache
 
+import pytest
+
+from equity_trader.data.cache import cached_for_run, reset_run_cache
 
 calls = {"n": 0}
 

@@ -2,11 +2,12 @@ import logging
 import time
 from datetime import date
 
-import yfinance as yf
+import numpy as np
 import pandas as pd
+import yfinance as yf
 
 from equity_trader.data.cache import cached_for_run
-from equity_trader.exceptions import TickerNotFoundError, DataFetchError
+from equity_trader.exceptions import TickerNotFoundError
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +49,8 @@ def get_quote(ticker: str) -> dict:
             "day_low": float(info.get("dayLow") or 0.0),
         }
     except (KeyError, TypeError) as e:
-        raise DataFetchError(f"Quote unavailable for {ticker}: {e}")
+        # yfinance returns an empty quote for symbols it does not know.
+        raise TickerNotFoundError(ticker) from e
 
 
 @cached_for_run
@@ -90,9 +92,6 @@ def get_analyst_targets(ticker: str) -> dict:
         "num_analysts": info.get("numberOfAnalystOpinions"),
         "recommendation": info.get("recommendationKey"),
     }
-
-
-import numpy as np
 
 
 def _rsi(close: pd.Series, period: int = 14) -> float:

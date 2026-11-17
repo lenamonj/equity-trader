@@ -2,9 +2,9 @@ import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
-import pytest
-from equity_trader.schemas import OrchestratorVerdict, AgentVerdict
+
 from equity_trader.persistence import persist
+from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
 
 
 def _verdict():

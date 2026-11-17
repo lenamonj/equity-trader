@@ -2,9 +2,8 @@ from agents import Runner, function_tool
 
 from equity_trader.agents.base import build_agent, shared_rules_block
 from equity_trader.config import AGENT_MODELS
-from equity_trader.schemas import AgentVerdict
 from equity_trader.data import yfinance_tools as yft
-
+from equity_trader.schemas import AgentVerdict
 
 AGENT_NAME = "jane_street_etf"
 

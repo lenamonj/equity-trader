@@ -1,7 +1,14 @@
 from equity_trader.agents import (
-    jpm_fundamental, bridgewater_macro, gs_technical, citadel_quant,
-    jane_street_etf, de_shaw_options, renaissance_pattern, two_sigma_backtest,
+    bridgewater_macro,
+    citadel_quant,
+    de_shaw_options,
+    gs_technical,
+    jane_street_etf,
+    jpm_fundamental,
+    renaissance_pattern,
+    two_sigma_backtest,
 )
+from equity_trader.config import AGENT_NAMES  # noqa: F401  (re-exported)
 
 # Order matches default-weight ranking, heaviest first.
 ALL_AGENTS = [
@@ -14,5 +21,3 @@ ALL_AGENTS = [
     ("renaissance_pattern", renaissance_pattern.run),
     ("two_sigma_backtest",  two_sigma_backtest.run),
 ]
-
-AGENT_NAMES = [name for name, _ in ALL_AGENTS]

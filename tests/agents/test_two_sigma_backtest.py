@@ -1,9 +1,11 @@
-import pytest
-import pandas as pd
-import numpy as np
 from unittest.mock import AsyncMock, patch
-from equity_trader.schemas import AgentVerdict
+
+import numpy as np
+import pandas as pd
+import pytest
+
 from equity_trader.agents import two_sigma_backtest as mod
+from equity_trader.schemas import AgentVerdict
 
 
 def test_backtest_rsi_mean_reversion_returns_summary(monkeypatch):
@@ -17,7 +19,7 @@ def test_backtest_rsi_mean_reversion_returns_summary(monkeypatch):
     summary = mod.backtest_simple_rules("AAPL")
     assert "rsi_mean_reversion" in summary
     assert "sma_crossover" in summary
-    for k, v in summary.items():
+    for v in summary.values():
         if isinstance(v, dict):
             assert {"trades", "hit_rate", "avg_return"}.issubset(v.keys())
     assert summary["as_of"] == "2024-11-29"

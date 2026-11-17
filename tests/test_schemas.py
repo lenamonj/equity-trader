@@ -1,7 +1,9 @@
+from datetime import date, datetime
+
 import pytest
-from datetime import date
 from pydantic import ValidationError
-from equity_trader.schemas import AgentVerdict, CatalystEvent, Recommendation
+
+from equity_trader.schemas import AgentVerdict, CatalystEvent, OrchestratorVerdict
 
 
 def test_agent_verdict_minimal_ok():
@@ -50,9 +52,6 @@ def test_catalyst_event():
                       expected_impact="HIGH", notes="Guidance update")
     assert e.expected_impact == "HIGH"
 
-
-from datetime import datetime
-from equity_trader.schemas import OrchestratorVerdict
 
 
 def _sample_verdict(agent="a", rec="BUY"):

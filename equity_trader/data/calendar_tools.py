@@ -6,8 +6,8 @@ module gives the orchestrator real, sourced upcoming events to anchor its
 output against.
 """
 import logging
+from collections.abc import Iterable
 from datetime import date, timedelta
-from typing import Iterable
 
 import yfinance as yf
 

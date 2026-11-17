@@ -1,8 +1,7 @@
-import pytest
-import respx
 import httpx
-from equity_trader.data import edgar_tools as et
+import respx
 
+from equity_trader.data import edgar_tools as et
 
 _TICKERS_JSON = {
     "0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."},

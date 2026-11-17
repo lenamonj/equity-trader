@@ -1,5 +1,7 @@
-import pytest
+import numpy as np
 import pandas as pd
+import pytest
+
 from equity_trader.data import yfinance_tools as yft
 from equity_trader.exceptions import TickerNotFoundError
 
@@ -30,9 +32,6 @@ def test_get_price_history_real_aapl():
     df = yft.get_price_history("AAPL", period="1mo", interval="1d")
     assert len(df) > 10
     assert "Close" in df.columns
-
-
-import numpy as np
 
 
 def _fake_history(monkeypatch, n=300):
@@ -122,6 +121,7 @@ def test_get_etf_landscape_returns_keys(monkeypatch):
 
 def test_horizon_expiry_skips_weeklies():
     from datetime import date
+
     from equity_trader.data.yfinance_tools import _horizon_expiry
     today = date(2026, 11, 17)
     expiries = ["2026-11-20", "2026-12-18", "2027-01-15", "2027-02-19", "2027-03-19"]
