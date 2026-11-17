@@ -6,15 +6,16 @@ from equity_trader.agents.base import TOOL_FUNCTIONS
 
 def test_gatherer_knows_every_tool_the_desks_hold():
     names = gatherer.tool_names()
-    assert len(names) == len(set(names)) == 35
+    assert len(names) == len(set(names)) == 33
     assert set(names) == set(TOOL_FUNCTIONS)
     assert names[0] == "tool_get_company_snapshot"  # shared context comes first
 
 
-def test_only_the_two_fred_lookups_are_left_to_the_desks():
-    left = [name for name in gatherer.tool_names()
-            if list(inspect.signature(TOOL_FUNCTIONS[name]).parameters) not in ([], ["ticker"])]
-    assert sorted(left) == ["tool_get_fred_series", "tool_search_fred"]
+def test_no_desk_tool_takes_an_argument_a_model_chooses():
+    # A tool with a free argument could not be gathered ahead of time, and a
+    # desk calling it would reach a data provider in the middle of a run.
+    for name in gatherer.tool_names():
+        assert list(inspect.signature(TOOL_FUNCTIONS[name]).parameters) in ([], ["ticker"]), name
 
 
 def test_gather_calls_each_tool_once_in_order_and_records_failures(monkeypatch):
@@ -26,19 +27,16 @@ def test_gather_calls_each_tool_once_in_order_and_records_failures(monkeypatch):
     def tool_b():
         calls.append(("b",))
 
-    def tool_c(series_id: str):
-        calls.append(("c", series_id))
-
-    def tool_d(ticker: str):
-        calls.append(("d", ticker))
+    def tool_c(ticker: str):
+        calls.append(("c", ticker))
         raise ValueError("Yahoo refused")
 
-    fakes = {"tool_a": tool_a, "tool_b": tool_b, "tool_c": tool_c, "tool_d": tool_d}
+    fakes = {"tool_a": tool_a, "tool_b": tool_b, "tool_c": tool_c}
     monkeypatch.setattr(gatherer, "TOOL_FUNCTIONS", fakes)
     monkeypatch.setattr(gatherer, "tool_names", lambda: list(fakes))
 
     report = gatherer.gather("NVDA")
 
-    assert calls == [("a", "NVDA"), ("b",), ("d", "NVDA")]  # the lookup is not gathered
+    assert calls == [("a", "NVDA"), ("b",), ("c", "NVDA")]
     assert [(row["tool"], row["error"]) for row in report] == [
-        ("tool_a", None), ("tool_b", None), ("tool_d", "ValueError: Yahoo refused")]
+        ("tool_a", None), ("tool_b", None), ("tool_c", "ValueError: Yahoo refused")]

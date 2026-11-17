@@ -26,21 +26,7 @@ def tool_get_sector_macro(ticker: str) -> dict:
     return fred_tools.get_sector_macro(yft.get_info(ticker).get("sector"))
 
 
-@desk_tool
-def tool_get_fred_series(series_id: str) -> dict:
-    """Any FRED series by id: title, units, latest value, direction and its last
-    twelve readings. Use tool_search_fred first if you do not know the id."""
-    return fred_tools.get_fred_series(series_id)
-
-
-@desk_tool
-def tool_search_fred(query: str) -> list[dict]:
-    """Find FRED series ids by keyword. Returns the most-used matches."""
-    return fred_tools.search_fred(query)
-
-
-SHARED_TOOLS = [tool_get_company_snapshot, tool_get_macro_dashboard, tool_get_sector_macro,
-                tool_get_fred_series, tool_search_fred]
+SHARED_TOOLS = [tool_get_company_snapshot, tool_get_macro_dashboard, tool_get_sector_macro]
 
 
 # Tools used by more than one desk.

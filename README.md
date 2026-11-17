@@ -72,7 +72,7 @@ Each desk has its own analysis framework, its own tools and its own voice. All e
 
 ## What each desk sees
 
-Every desk starts from the same context: today's date and price, the company's sector, next earnings date and short interest, a dashboard of about fifty macro readings with their direction, and the FRED catalogue for anything else. Then each works with tools of its own.
+Every desk starts from the same context: today's date and price, the company's sector, next earnings date and short interest, a dashboard of about fifty macro readings with their direction, and the series that drive the company's sector. Then each works with tools of its own.
 
 All of it is computed in code and handed over with dates and sample sizes, so the model interprets numbers instead of producing them.
 
@@ -118,7 +118,7 @@ Every desk's reasoning stays on the page. Nothing is averaged away.
 
 - **Independent specialists.** Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its output type. No desk sees another's work. Desks share context, never conclusions.
 - **The model interprets; code computes.** Ratios, indicators, event studies and backtests are calculated in code. No desk does arithmetic or recalls a fact from memory.
-- **A gatherer before the desks.** One component fetches everything the desks will read, one request stream at a time, before any desk starts. It is code, not a model: what to fetch is fixed by the desks' tool lists. The desks then read from a per-run `ContextVar` cache and make no calls to the data providers, apart from a FRED lookup a desk chooses for itself.
+- **A gatherer before the desks.** One component fetches everything the desks will read, one request stream at a time, before any desk starts. It is code, not a model: what to fetch is fixed by the desks' tool lists. The desks then read from a per-run `ContextVar` cache and never call a data provider: every tool takes the ticker or nothing, so there is no request a model could invent. A run makes about 60 FRED requests against a limit of 120 a minute, and the macro dashboard is kept for the day.
 - **Rate-limit aware fan-out.** A semaphore runs three agents at a time, with exponential backoff on `RateLimitError`.
 - **No silent gaps.** A request Yahoo refuses is retried once after a pause and then raises, so a desk sees a failed fetch as a failure and not as empty data.
 - **Temporal grounding.** The orchestrator is handed today's date, the current price, and a real catalyst calendar. Any catalyst dated outside the horizon is dropped in code.

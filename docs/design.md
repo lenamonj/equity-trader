@@ -36,11 +36,11 @@ web UI or terminal report                       app.py, run.py
 
 ### The gatherer
 
-`gather(ticker)` in `gatherer.py` calls every desk tool that needs only the ticker, 33 of the 35, once each and one at a time, before any desk starts. The results land in the per-run cache, so a desk's tool call is answered from memory. The two tools it leaves out are the FRED search and series lookup, whose arguments a desk chooses for itself.
+`gather(ticker)` in `gatherer.py` calls every desk tool, all 33, once each and one at a time, before any desk starts. The results land in the per-run cache, so a desk's tool call is answered from memory and no desk calls a data provider. Every tool takes the ticker or nothing; a test rejects a tool with any other argument, because a desk could then reach a provider in the middle of a run with a request of its own choosing.
 
 It is code, not a model, because nothing about it needs judgment: what to fetch is the desks' own tool lists. Tools are declared with `desk_tool` (`agents/base.py`), which registers the plain function next to the SDK tool so the gatherer can call it.
 
-It exists because of how the providers behave under load. Eight desks asking at once sent hundreds of requests to FRED in a second, and Yahoo refused a different request on every run. Fetched in sequence, a run makes about 116 Yahoo, 62 FRED and 12 SEC requests over about 20 seconds, and none is refused. A tool that fails in the gatherer is logged and left for the desk, which tries again and reports what it gets.
+It exists because of how the providers behave under load. Eight desks asking at once sent hundreds of requests to FRED in a second, and Yahoo refused a different request on every run. Fetched in sequence, a run makes about 116 Yahoo, 60 FRED and 12 SEC requests over about 20 seconds, and none is refused. FRED allows 120 requests a minute, so one run fits with room, and the web app keeps the macro dashboard for the day. A tool that fails in the gatherer is logged and left for the desk, which tries again and reports what it gets.
 
 ## The committee
 
@@ -58,7 +58,6 @@ Two principles govern what a desk is given:
 | Company snapshot | Today's date, price, market cap, sector, industry, 52-week range, beta, dollar volume, next earnings date, short interest and its change, ownership |
 | Macro dashboard | About fifty FRED series in eight groups: rates, inflation, growth, labor, credit, liquidity, markets, recession. Each with its value now, three months ago and a year ago, and its ten-year percentile. Also the scheduled CPI, jobs, GDP and PCE releases |
 | Sector macro | FRED series that drive the ticker's sector |
-| FRED series and search | Any series by id, and a keyword search for the id |
 
 ### Desk tools
 
@@ -126,7 +125,7 @@ All market data is free. Tools are memoized per run by `cached_for_run` (`data/c
 | Module | Source | Provides |
 |---|---|---|
 | `edgar_tools.py` | SEC EDGAR | Financial statements as filed, earnings release text, recent 8-K text |
-| `fred_tools.py` | FRED | Macro dashboard, sector series, any series, search, release calendar |
+| `fred_tools.py` | FRED | Macro dashboard, sector series, release calendar |
 | `yfinance_tools.py` | yfinance | Raw access: prices, company profile, valuation multiples, earnings dates, ETF landscape, fallback statements |
 | `company_tools.py` | yfinance | Snapshot, estimates and surprises, analyst view, insider activity, industry peers, factor scorecard, risk statistics |
 | `technical_tools.py` | prices | Technicals, key levels, volume analysis, relative strength |

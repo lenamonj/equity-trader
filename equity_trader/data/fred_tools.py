@@ -338,35 +338,3 @@ def get_sector_macro(sector: str | None) -> dict:
     """Macro series specific to a sector, read the same way as the dashboard."""
     specs = SECTOR_SERIES.get(sector or "", [])
     return {"sector": sector, "readings": _readings(specs) if specs else []}
-
-
-@cached_for_run
-def get_fred_series(series_id: str) -> dict:
-    """Any FRED series by id: what it is, where it stands, and its last 12 readings."""
-    series_id = series_id.strip().upper()
-    series = get_series(series_id, start=_history_start()).dropna()
-    try:
-        meta = _client().get_series_info(series_id)
-    except Exception as exc:
-        raise DataFetchError(f"FRED series info failed for {series_id}: {exc}") from exc
-    return {
-        **_reading(series_id, meta["title"], "level", series),
-        "units": meta["units_short"],
-        "frequency": meta["frequency_short"],
-        "recent": [{"date": iso(when), "value": num(value, 3)}
-                   for when, value in series.tail(12).items()],
-    }
-
-
-@cached_for_run
-def search_fred(query: str) -> list[dict]:
-    """The most-used FRED series matching a keyword search."""
-    try:
-        found = _client().search(query, limit=8, order_by="popularity", sort_order="desc")
-    except Exception as exc:
-        raise DataFetchError(f"FRED search failed for {query!r}: {exc}") from exc
-    if found is None:
-        return []
-    return [{"series": series_id, "title": row["title"], "frequency": row["frequency_short"],
-             "units": row["units_short"], "last_observation": iso(row["observation_end"])}
-            for series_id, row in found.iterrows()]

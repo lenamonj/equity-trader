@@ -176,27 +176,3 @@ def test_release_calendar_keeps_only_dates_inside_the_horizon():
     out = ft.get_release_calendar()
     assert {r["date"] for r in out} == {inside.isoformat()}
     assert {r["release"] for r in out} == set(ft._RELEASES.values())
-
-
-def test_fred_series_describes_and_reads_any_series(monkeypatch):
-    class DescribedFred(FakeFred):
-        def get_series_info(self, series_id):
-            return {"title": "Some Series", "units_short": "Index", "frequency_short": "M"}
-
-    monkeypatch.setattr(ft, "Fred", DescribedFred)
-    out = ft.get_fred_series(" abc ")
-    assert (out["series"], out["label"], out["units"]) == ("ABC", "Some Series", "Index")
-    assert out["value"] == 10.0 and len(out["recent"]) == 10
-
-
-def test_search_fred_returns_ids_and_titles(monkeypatch):
-    class SearchFred(FakeFred):
-        def search(self, text, **kwargs):
-            return pd.DataFrame(
-                {"title": ["Semis"], "frequency_short": ["M"], "units_short": ["Index"],
-                 "observation_end": [pd.Timestamp("2026-10-01")]}, index=["IPG3344S"])
-
-    monkeypatch.setattr(ft, "Fred", SearchFred)
-    assert ft.search_fred("semiconductor") == [{
-        "series": "IPG3344S", "title": "Semis", "frequency": "M", "units": "Index",
-        "last_observation": "2026-10-01"}]

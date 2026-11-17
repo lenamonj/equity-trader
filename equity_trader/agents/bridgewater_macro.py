@@ -74,7 +74,6 @@ YOUR TOOLS:
   drawdown potential instead of estimating.
 - tool_get_cross_asset_board and tool_get_sector_rotation: what other
   assets and sectors are saying about the regime right now.
-- tool_search_fred and tool_get_fred_series: any other series you need.
 
 Cite specific data points and dates - never paraphrase.
 
