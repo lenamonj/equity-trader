@@ -113,7 +113,7 @@ Every desk's reasoning stays on the page. Nothing is averaged away.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture-dark.svg">
-  <img src="docs/assets/architecture-light.svg" width="100%" alt="The gatherer fetches the data, then a ticker fans out to eight specialist agents, three at a time, reading it from one cache. The orchestrator combines a deterministic score, an LLM memo and live catalysts into one verdict, saved to SQLite and JSON.">
+  <img src="docs/assets/architecture-light.svg" width="100%" alt="A ticker goes to the gatherer, which fetches every desk's data before any desk starts. Eight specialist agents then read it from one cache, three at a time. The orchestrator combines a deterministic score, an LLM memo and live catalysts into one verdict, saved to SQLite and JSON.">
 </picture>
 
 - **Independent specialists.** Each desk is a standalone OpenAI Agents SDK agent with `AgentVerdict` as its output type. No desk sees another's work. Desks share context, never conclusions.

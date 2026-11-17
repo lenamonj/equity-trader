@@ -182,61 +182,90 @@ def architecture(f: dict, t: dict) -> str:
     row_y, pitch, row_h = 120, 48, 38
     last_cy = row_y + pitch * 7 + row_h / 2
     cy = (row_y + row_h / 2 + last_cy) / 2
+    # Left to right: ticker, gatherer, the desks between two spines, chair, verdict.
+    ticker_x, ticker_w = 56, 104
+    gather_x, gather_w = 182, 150
+    spine_in, desk_x, desk_w, spine_out = 354, 378, 330, 732
+    chair_x, chair_w = 756, 244
+    verdict_x, verdict_w = 1038, 186
+    desks_mid = (spine_in + spine_out) / 2
     b = [
         f["mono"].draw("ARCHITECTURE", 56, 62, 11, t["ink4"], tracking=0.18),
         f["mono"].draw("ONE RUN, END TO END", W - 56, 62, 11, t["ink4"], "end", tracking=0.18),
         line(56, 80, W - 56, 80, t["border"]),
         # Ticker
-        rect(56, cy - 52, 150, 104, t["card"], t["border"]),
-        f["mono"].draw("TICKER", 131, cy - 22, 9.5, t["ink4"], "middle", tracking=0.18),
-        f["display"].draw("NVDA", 131, cy + 22, 34, t["brand"], "middle"),
-        # Fan-out spine
-        line(206, cy, 250, cy, t["gold"]),
-        line(250, row_y + row_h / 2, 250, last_cy, t["gold"]),
-        line(655, row_y + row_h / 2, 655, last_cy, t["gold"]),
-        line(655, cy, 690, cy, t["gold"]),
-        f["mono"].draw("8 SPECIALISTS, 3 AT A TIME, BACKOFF ON 429", 455, 104, 9, t["ink4"],
+        rect(ticker_x, cy - 52, ticker_w, 104, t["card"], t["border"]),
+        f["mono"].draw("TICKER", ticker_x + ticker_w / 2, cy - 22, 9.5, t["ink4"], "middle",
+                       tracking=0.18),
+        f["display"].draw("NVDA", ticker_x + ticker_w / 2, cy + 20, 30, t["brand"], "middle"),
+        # Gatherer: every desk's data, fetched before any desk starts
+        line(ticker_x + ticker_w, cy, gather_x, cy, t["gold"]),
+        rect(gather_x, cy - 76, gather_w, 152, t["card"], t["border"]),
+        rect(gather_x, cy - 76, gather_w, 2, t["gold"], rx=0),
+        f["mono"].draw("GATHERER", gather_x + 16, cy - 44, 9.5, t["gold"], tracking=0.18),
+        f["display"].draw("Data, first", gather_x + 16, cy - 12, 21, t["brand"],
+                          max_width=gather_w - 32),
+        line(gather_x + 16, cy + 4, gather_x + gather_w - 16, cy + 4, t["border"]),
+        f["text"].draw("Every desk's data,", gather_x + 16, cy + 28, 13, t["ink3"],
+                       max_width=gather_w - 32),
+        f["text"].draw("fetched in order", gather_x + 16, cy + 47, 13, t["ink3"],
+                       max_width=gather_w - 32),
+        f["mono"].draw("YFINANCE  SEC  FRED", gather_x + 16, cy + 66, 7.5, t["ink4"],
+                       tracking=0.1),
+        f["mono"].draw("CODE, NOT A MODEL", gather_x + gather_w / 2, cy + 104, 9, t["ink4"],
                        "middle", tracking=0.14),
-        f["mono"].draw("THE GATHERER FETCHES ALL DATA FIRST: YFINANCE, SEC, FRED", 455,
+        # Fan-out spine
+        line(gather_x + gather_w, cy, spine_in, cy, t["gold"]),
+        line(spine_in, row_y + row_h / 2, spine_in, last_cy, t["gold"]),
+        line(spine_out, row_y + row_h / 2, spine_out, last_cy, t["gold"]),
+        line(spine_out, cy, chair_x, cy, t["gold"]),
+        f["mono"].draw("8 SPECIALISTS, 3 AT A TIME, BACKOFF ON 429", desks_mid, 104, 9,
+                       t["ink4"], "middle", tracking=0.14),
+        f["mono"].draw("EVERY DESK READS THE GATHERED DATA FROM ONE CACHE", desks_mid,
                        last_cy + 46, 9, t["ink4"], "middle", tracking=0.14),
     ]
     for i, (_, firm, discipline) in enumerate(DESKS):
         y = row_y + i * pitch
         mid = y + row_h / 2
         b += [
-            line(250, mid, 290, mid, t["gold"]),
-            line(620, mid, 655, mid, t["gold"]),
-            rect(290, y, 330, row_h, t["card"], t["border"]),
-            f["text"].draw(firm, 306, mid + 5.5, 15.5, t["ink"], max_width=180),
-            f["mono"].draw(discipline.upper(), 606, mid + 3.5, 8, t["ink4"], "end", tracking=0.1),
+            line(spine_in, mid, desk_x, mid, t["gold"]),
+            line(desk_x + desk_w, mid, spine_out, mid, t["gold"]),
+            rect(desk_x, y, desk_w, row_h, t["card"], t["border"]),
+            f["text"].draw(firm, desk_x + 16, mid + 5.5, 15.5, t["ink"], max_width=180),
+            f["mono"].draw(discipline.upper(), desk_x + desk_w - 14, mid + 3.5, 8, t["ink4"],
+                           "end", tracking=0.1),
         ]
-    oc = cy
+    oc, inner = cy, chair_x + 22
     b += [
-        rect(690, oc - 106, 270, 212, t["card"], t["brand"]),
-        rect(690, oc - 106, 270, 2, t["gold"], rx=0),
-        f["mono"].draw("ORCHESTRATOR", 712, oc - 70, 9.5, t["gold"], tracking=0.18),
-        f["display"].draw("Committee chair", 712, oc - 34, 25, t["brand"]),
-        line(712, oc - 14, 938, oc - 14, t["border"]),
+        rect(chair_x, oc - 106, chair_w, 212, t["card"], t["brand"]),
+        rect(chair_x, oc - 106, chair_w, 2, t["gold"], rx=0),
+        f["mono"].draw("ORCHESTRATOR", inner, oc - 70, 9.5, t["gold"], tracking=0.18),
+        f["display"].draw("Committee chair", inner, oc - 34, 25, t["brand"],
+                          max_width=chair_w - 44),
+        line(inner, oc - 14, chair_x + chair_w - 22, oc - 14, t["border"]),
     ]
     for i, text in enumerate(["Deterministic weighted score",
                               "Portfolio manager memo",
                               "Live catalyst calendar",
-                              "Ground truth stamped after the LLM"]):
-        b.append(f["text"].draw(text, 712, oc + 14 + i * 25, 14, t["ink3"], max_width=226))
+                              "Facts stamped after the LLM"]):
+        b.append(f["text"].draw(text, inner, oc + 14 + i * 25, 14, t["ink3"],
+                                max_width=chair_w - 44))
+    tip, vx = verdict_x - 4, verdict_x + 22
     b += [
-        line(960, oc, 1010, oc, t["gold"]),
-        f'<path d="M1010 {oc} l-7 -4 v8 z" fill="{t["gold"]}"/>',
-        rect(1014, oc - 76, 210, 152, t["brand"], rx=4),
-        f["mono"].draw("VERDICT", 1036, oc - 42, 9.5, t["on_brand"], tracking=0.18),
-        f["display"].draw("Buy / Hold / Sell", 1036, oc - 6, 23, t["bg"], max_width=166),
-        f["text"].draw("Conviction, target,", 1036, oc + 26, 13.5, t["on_brand"]),
-        f["text"].draw("sizing, stop loss", 1036, oc + 46, 13.5, t["on_brand"]),
-        f["mono"].draw("SQLITE + JSON SNAPSHOT", 1119, oc + 104, 9, t["ink4"], "middle",
-                       tracking=0.14),
+        line(chair_x + chair_w, oc, tip, oc, t["gold"]),
+        f'<path d="M{tip} {oc} l-7 -4 v8 z" fill="{t["gold"]}"/>',
+        rect(verdict_x, oc - 76, verdict_w, 152, t["brand"], rx=4),
+        f["mono"].draw("VERDICT", vx, oc - 42, 9.5, t["on_brand"], tracking=0.18),
+        f["display"].draw("Buy / Hold / Sell", vx, oc - 6, 23, t["bg"],
+                          max_width=verdict_w - 44),
+        f["text"].draw("Conviction, target,", vx, oc + 26, 13.5, t["on_brand"]),
+        f["text"].draw("sizing, stop loss", vx, oc + 46, 13.5, t["on_brand"]),
+        f["mono"].draw("SQLITE + JSON SNAPSHOT", verdict_x + verdict_w / 2, oc + 104, 9,
+                       t["ink4"], "middle", tracking=0.14),
     ]
-    return svg(540, "Architecture: the gatherer fetches the data, then a ticker fans out to "
-                    "eight specialist agents, three at a time, reading it from one cache; "
-                    "the orchestrator combines a deterministic "
+    return svg(540, "Architecture: the gatherer fetches every desk's data before any desk "
+                    "starts; eight specialist agents then read it, three at a time; the "
+                    "orchestrator combines a deterministic "
                     "weighted score with an LLM memo and live catalysts into one verdict, "
                     "persisted to SQLite and JSON.", b, t)
 
