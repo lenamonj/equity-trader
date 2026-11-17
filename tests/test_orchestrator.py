@@ -207,3 +207,11 @@ async def test_orchestrator_falls_back_on_llm_failure():
         out = await orch.run("NVDA", verdicts, current_price=190.0)
         assert isinstance(out, OrchestratorVerdict)
         assert "mechanical aggregation" in out.synthesis.lower()
+
+
+@pytest.mark.asyncio
+async def test_orchestrator_keeps_only_desk_names_as_dominant_drivers():
+    llm = _llm_verdict("HOLD").model_copy(update={
+        "dominant_drivers": ["jpm_fundamental", "Strong margins offset by debt."]})
+    out = await _run_with(llm, [_v("jpm_fundamental", "HOLD", 5)])
+    assert out.dominant_drivers == ["jpm_fundamental"]

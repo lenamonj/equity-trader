@@ -60,6 +60,9 @@ Hard rules:
    cannot trace to REAL_CATALYSTS or an agent citation. Any catalyst whose
    date falls outside [TODAY, TODAY+6mo] will be dropped post-hoc.
 
+10. `dominant_drivers` lists the `agent` names (e.g. 'jpm_fundamental') of the
+   one to three desks whose verdicts drove your call. Names only, no prose.
+
 Write a 150-300 word synthesis in `synthesis` that reads like a PM memo -
 direct, evidence-cited, no hedging filler.
 
@@ -193,6 +196,8 @@ def _stamp_deterministic(v: OrchestratorVerdict, ticker: str,
         "price_target_6mo": conviction_weighted_target(verdicts),
         "weights_used": _effective_weights(verdicts),
         "red_flags": red_flags,
+        # Drivers are desks, shown by house name in the UI; prose is dropped.
+        "dominant_drivers": [d for d in v.dominant_drivers if d in AGENT_WEIGHTS],
         "agent_verdicts": verdicts,
         "catalyst_calendar": llm_catalysts,
     })
