@@ -56,6 +56,7 @@
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+body, gradio-app { background: var(--paper) !important; }
 .gradio-container {
   background: var(--paper) !important;
   color: var(--ink-1) !important;
@@ -65,8 +66,8 @@
 }
 .gradio-container .prose { color: var(--ink-2); }
 footer, .show-api, .built-with, .footer { display: none !important; }
-.tabs > .tab-nav { border-bottom: 1px solid var(--border) !important; padding: 0 32px !important; }
-.tabs > .tab-nav button {
+.tabs .tab-container { border-bottom: 1px solid var(--border) !important; padding: 0 32px !important; }
+.tabs .tab-container button {
   font-family: var(--font-body) !important;
   font-size: 12px !important;
   font-weight: 500 !important;
@@ -81,10 +82,11 @@ footer, .show-api, .built-with, .footer { display: none !important; }
   border-radius: 0 !important;
   transition: color 0.2s ease, border-color 0.2s ease !important;
 }
-.tabs > .tab-nav button:hover { color: var(--ink-2) !important; }
-.tabs > .tab-nav button.selected {
+.tabs .tab-container button::after { display: none !important; }
+.tabs .tab-container button:hover { color: var(--ink-2) !important; }
+.tabs .tab-container button.selected {
   color: var(--navy) !important;
-  border-bottom-color: var(--gold) !important;
+  box-shadow: inset 0 -2px 0 var(--gold) !important;
 }
 
 /* ============================================================
@@ -955,8 +957,10 @@ footer, .show-api, .built-with, .footer { display: none !important; }
 .loading-mark {
   width: 56px;
   height: 56px;
-  border: 1.5px solid var(--navy);
-  border-top-color: transparent;
+  /* Longhands: Gradio drops a border shorthand that a longhand then overrides */
+  border-style: solid;
+  border-width: 1.5px;
+  border-color: transparent var(--navy) var(--navy) var(--navy);
   border-radius: 50%;
   margin: 0 auto 24px;
   animation: spin 1.1s linear infinite;

@@ -489,19 +489,20 @@ with gr.Blocks(title="EquityTrader", fill_width=True) as demo:
         with gr.Row(elem_classes="report"):
             report = gr.HTML(_welcome_html())
 
-        run_btn.click(analyze, inputs=ticker, outputs=report)
-        ticker.submit(analyze, inputs=ticker, outputs=report)
+        # The loading card is the progress display; hide Gradio's own.
+        run_btn.click(analyze, inputs=ticker, outputs=report, show_progress="hidden")
+        ticker.submit(analyze, inputs=ticker, outputs=report, show_progress="hidden")
 
-    with gr.Tab("History"):
+    with gr.Tab("History") as history_tab:
         with gr.Row(elem_classes="history-wrap"):
-            gr.Dataframe(
+            history = gr.Dataframe(
                 value=history_table,
-                headers=["Ticker", "Timestamp", "Rec", "Conviction", "Score", "Target"],
-                every=10,
+                headers=["Ticker", "Run (UTC)", "Call", "Conv.", "Score", "Target"],
                 elem_classes="history-table",
                 interactive=False,
                 wrap=False,
             )
+    history_tab.select(history_table, outputs=history)
 
 
 if __name__ == "__main__":

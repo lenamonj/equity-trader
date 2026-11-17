@@ -23,6 +23,7 @@
 
 <a href="#quick-start">Quick start</a> &nbsp;&middot;&nbsp;
 <a href="#the-committee">The committee</a> &nbsp;&middot;&nbsp;
+<a href="#a-run-live">A run, live</a> &nbsp;&middot;&nbsp;
 <a href="#the-report">The report</a> &nbsp;&middot;&nbsp;
 <a href="#architecture">Architecture</a> &nbsp;&middot;&nbsp;
 <a href="#how-the-verdict-is-computed">Scoring</a>
@@ -31,7 +32,7 @@
 
 <br>
 
-<img src="docs/screenshots/verdict.png" width="100%" alt="The verdict card for AVGO: recommendation, conviction, current price, 6-month target and committee score.">
+<img src="docs/screenshots/verdict.png" width="100%" alt="The verdict card for NVDA: recommendation, conviction, current price, 6-month target and committee score.">
 
 <br>
 
@@ -69,6 +70,14 @@ Each desk has its own analysis framework, its own tools and its own voice. All e
 
 <br>
 
+## A run, live
+
+Each desk's call appears the moment it reports, so a run that takes a minute or two is never a blank spinner. The terminal report shows the same progress.
+
+<img src="docs/screenshots/progress.png" width="100%" alt="The loading card mid-run: desks that have reported show their call, the rest are still working.">
+
+<br>
+
 ## The report
 
 The chair writes a portfolio manager memo, names where the desks agree and where they split, flags what could break the call, and suggests a position size. The catalyst calendar is fetched live from market data, so the dates are real.
@@ -92,6 +101,7 @@ Every desk's reasoning stays on the page. Nothing is averaged away.
 - **Rate-limit aware fan-out.** A semaphore runs three agents at a time, with exponential backoff on `RateLimitError`.
 - **One fetch per run.** Data tools are memoized in a per-run `ContextVar` cache, so eight agents share fetches instead of hammering the APIs.
 - **Temporal grounding.** The orchestrator is handed today's date, the current price, and a real catalyst calendar. Any catalyst dated outside the horizon is dropped in code.
+- **Dated inputs.** Every reading a desk sees carries its observation date, and the backtest reports an unconditional baseline next to each rule, so a stale number or a fake edge is visible to the chair.
 - **Graceful degradation.** A failed desk is excluded and its weight is redistributed. Only the runner can mark a desk as failed. If the orchestrator call fails, a mechanical aggregation takes its place.
 
 <br>
@@ -124,7 +134,7 @@ uv sync
 ```
 
 ```bash
-uv run python run.py AAPL   # terminal report
+uv run python run.py NVDA   # terminal report
 uv run python app.py        # web UI at http://127.0.0.1:7860
 uv run gradio app.py        # web UI with hot reload
 ```

@@ -2,6 +2,9 @@
 name = "equity-trader"
 version = "0.1.0"
 description = "Multi-agent equity research producing 3-6 month Buy/Hold/Sell verdicts"
+readme = "README.md"
+license = "MIT"
+authors = [{ name = "Jeff Lenamon" }]
 requires-python = ">=3.11"
 dependencies = [
   "openai-agents>=0.24.0",
@@ -16,6 +19,9 @@ dependencies = [
   "rich>=15.0.0",
   "python-dotenv>=1.2.0",
 ]
+
+[project.urls]
+Repository = "https://github.com/lenamonj/equity-trader"
 
 [dependency-groups]
 dev = [
