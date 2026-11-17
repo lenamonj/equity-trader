@@ -127,3 +127,24 @@ def test_horizon_expiry_skips_weeklies():
     expiries = ["2026-11-20", "2026-12-18", "2027-01-15", "2027-02-19", "2027-03-19"]
     assert _horizon_expiry(expiries, today) == "2027-02-19"
     assert _horizon_expiry(expiries[:2], today) == "2026-12-18"
+
+
+def test_relative_strength_measures_ticker_and_peers_over_the_same_window(monkeypatch):
+    from equity_trader.data.cache import reset_run_cache
+    reset_run_cache()
+    idx = pd.date_range("2025-01-01", periods=300, freq="B")
+
+    def history(ticker, period="2y", interval="1d"):
+        # The ticker doubles over the last 90 sessions; the peer is flat over
+        # them but rallied earlier, which a longer peer window would pick up.
+        prices = np.full(300, 100.0)
+        if ticker == "NVDA":
+            prices[-90:] = 200.0
+        else:
+            prices[:150] = 50.0
+        return pd.DataFrame({"Close": prices}, index=idx)
+
+    monkeypatch.setattr(yft, "get_price_history", history)
+    out = yft.compute_factor_loads("NVDA", peers=["AMD"])
+    assert out["rel_strength_vs_peers"] == pytest.approx(1.0)
+    assert out["as_of"] == idx[-1].date().isoformat()

@@ -18,7 +18,24 @@ def test_backtest_rsi_mean_reversion_returns_summary(monkeypatch):
     assert "rsi_mean_reversion" in summary
     assert "sma_crossover" in summary
     for k, v in summary.items():
-        assert {"trades", "hit_rate", "avg_return"}.issubset(v.keys())
+        if isinstance(v, dict):
+            assert {"trades", "hit_rate", "avg_return"}.issubset(v.keys())
+    assert summary["as_of"] == "2024-11-29"
+
+
+def test_backtest_rule_counts_a_run_of_signal_days_as_one_trade():
+    close = pd.Series([100.0, 90.0, 80.0, 88.0, 96.0, 100.0, 104.0, 108.0],
+                      index=pd.date_range("2026-01-01", periods=8, freq="B"))
+    signals = pd.Series([False, True, True, True, False, False, False, False],
+                        index=close.index)
+    out = mod._backtest_rule(close, signals, hold=3)
+    # One entry at 90, exit three sessions later at 96; the next two signal
+    # days fall inside that holding period.
+    assert out["trades"] == 1
+    assert out["avg_return"] == pytest.approx(96.0 / 90.0 - 1.0)
+    assert out["worst_trade"] == out["avg_return"]
+    assert out["last_signal_date"] == "2026-01-06"
+    assert out["signal_active_now"] is False
 
 
 @pytest.mark.asyncio

@@ -29,7 +29,8 @@ def tool_get_sector_macro(sector: str) -> dict:
 @function_tool
 def tool_get_sector_etf_history(etf: str) -> dict:
     df = yft.get_price_history(etf, period="6mo", interval="1d")
-    return {"last_close": float(df["Close"].iloc[-1]),
+    return {"as_of": yft.as_of(df),
+            "last_close": float(df["Close"].iloc[-1]),
             "ret_3m": float(df["Close"].iloc[-1] / df["Close"].iloc[-63] - 1.0)
                        if len(df) >= 63 else None}
 

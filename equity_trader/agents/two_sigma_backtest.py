@@ -19,41 +19,47 @@ def _rsi_series(close: pd.Series, period: int = 14) -> pd.Series:
     return 100 - (100 / (1 + rs))
 
 
-def _summarize_trades(returns: pd.Series) -> dict:
-    if returns.empty:
-        return {"trades": 0, "hit_rate": None, "avg_return": None}
-    return {
-        "trades": int(len(returns)),
-        "hit_rate": float((returns > 0).mean()),
-        "avg_return": float(returns.mean()),
+def _backtest_rule(close: pd.Series, signals: pd.Series, hold: int) -> dict:
+    """Buy on each signal and hold `hold` sessions. Trades never overlap, so a
+    run of consecutive signal days counts once, not once per day."""
+    returns, next_free = [], 0
+    for loc in np.flatnonzero(signals.to_numpy()):
+        if loc >= next_free and loc + hold < len(close):
+            returns.append(close.iloc[loc + hold] / close.iloc[loc] - 1.0)
+            next_free = loc + hold
+    fired = signals[signals]
+    summary = {
+        "trades": len(returns),
+        "hit_rate": None,
+        "avg_return": None,
+        "worst_trade": None,
+        # Mean return of every window of this length, signal or not: the bar
+        # a rule has to clear to claim an edge.
+        "baseline_avg_return": float((close.shift(-hold) / close - 1.0).mean()),
+        "signal_active_now": bool(signals.iloc[-hold:].any()),
+        "last_signal_date": fired.index[-1].date().isoformat() if len(fired) else None,
     }
+    if returns:
+        r = pd.Series(returns)
+        summary.update(hit_rate=float((r > 0).mean()), avg_return=float(r.mean()),
+                       worst_trade=float(r.min()))
+    return summary
 
 
 def backtest_simple_rules(ticker: str) -> dict:
-    df = yft.get_price_history(ticker, period="2y")
+    df = yft.get_price_history(ticker, period="5y")
     close = df["Close"]
-    # RSI mean reversion: buy when RSI<30, hold 20 sessions
-    rsi = _rsi_series(close)
-    signals = rsi < 30
-    rets = []
-    for i in signals[signals].index:
-        loc = close.index.get_loc(i)
-        if loc + 20 < len(close):
-            rets.append(close.iloc[loc + 20] / close.iloc[loc] - 1.0)
-    rsi_summary = _summarize_trades(pd.Series(rets))
-
-    # 50/200 SMA crossover: buy when 50dma crosses above 200dma, hold 60 sessions
     sma50 = close.rolling(50).mean()
     sma200 = close.rolling(200).mean()
-    cross = (sma50.shift() <= sma200.shift()) & (sma50 > sma200)
-    rets2 = []
-    for i in cross[cross].index:
-        loc = close.index.get_loc(i)
-        if loc + 60 < len(close):
-            rets2.append(close.iloc[loc + 60] / close.iloc[loc] - 1.0)
-    sma_summary = _summarize_trades(pd.Series(rets2))
-
-    return {"rsi_mean_reversion": rsi_summary, "sma_crossover": sma_summary}
+    return {
+        "as_of": yft.as_of(df),
+        "history_start": df.index[0].date().isoformat(),
+        # Buy when RSI<30, hold 20 sessions
+        "rsi_mean_reversion": _backtest_rule(close, _rsi_series(close) < 30, hold=20),
+        # Buy when the 50dma crosses above the 200dma, hold 60 sessions
+        "sma_crossover": _backtest_rule(
+            close, (sma50.shift() <= sma200.shift()) & (sma50 > sma200), hold=60),
+    }
 
 
 @function_tool
@@ -100,14 +106,19 @@ Backtest:
   direction. Otherwise return HOLD with conviction 3.
 
 Use the tool_backtest_simple_rules ONCE to pull the rsi_mean_reversion
-and sma_crossover summaries. Cite the specific trades, hit_rate, and
-avg_return numbers - never paraphrase.
+and sma_crossover summaries. Each covers the history from history_start
+to as_of, with non-overlapping trades, and reports trades, hit_rate,
+avg_return, worst_trade, baseline_avg_return (the average return of every
+window of the same length, signal or not), signal_active_now and
+last_signal_date. A rule has an edge only if avg_return clears
+baseline_avg_return on a credible sample. Cite the specific numbers -
+never paraphrase.
 
 REGARDLESS of the recommendation, your thesis bullets MUST report the
 actual numbers you observed: rule name, hit_rate, sample size (trades),
 avg_return, and whether the rule is currently signaling. Example:
-- "RSI mean reversion: 52% hit rate on 18 trades over 2y, avg 1.4%
-   return - no edge above noise; not currently signaling."
+- "RSI mean reversion: 52% hit rate on 18 trades over 5y, avg 1.4%
+   return vs 1.1% baseline - no edge above noise; not currently signaling."
 - "50/200 SMA crossover: 1 trade in window, sample too small; last
    signal was X months ago."
 Put the FINDINGS in thesis. Put what could be wrong with them in risks

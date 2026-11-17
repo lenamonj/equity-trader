@@ -1,3 +1,4 @@
+import logging
 import time
 from datetime import date
 
@@ -6,6 +7,8 @@ import pandas as pd
 
 from equity_trader.data.cache import cached_for_run
 from equity_trader.exceptions import TickerNotFoundError, DataFetchError
+
+log = logging.getLogger(__name__)
 
 _LAST_CALL = {"t": 0.0}
 _MIN_INTERVAL = 0.1  # seconds
@@ -16,6 +19,11 @@ def _throttle() -> None:
     if elapsed < _MIN_INTERVAL:
         time.sleep(_MIN_INTERVAL - elapsed)
     _LAST_CALL["t"] = time.monotonic()
+
+
+def as_of(df: pd.DataFrame) -> str:
+    """Date of the last bar, so every derived number can be dated."""
+    return df.index[-1].date().isoformat()
 
 
 @cached_for_run
@@ -113,6 +121,7 @@ def compute_technicals(ticker: str) -> dict:
     macd = ema12 - ema26
     macd_signal = macd.ewm(span=9, adjust=False).mean()
     return {
+        "as_of": as_of(df),
         "last_close": float(close.iloc[-1]),
         "sma_50": float(close.rolling(50).mean().iloc[-1]),
         "sma_200": float(close.rolling(200).mean().iloc[-1]) if len(close) >= 200 else None,
@@ -217,18 +226,23 @@ def compute_factor_loads(ticker: str, peers: list[str]) -> dict:
         mom_12_1 = float(close.iloc[-1] / close.iloc[0] - 1.0)
     vol_60 = float(close.pct_change().tail(60).std() * (252 ** 0.5))
 
-    # Relative strength vs peers over last 90 sessions
-    base_ret = float(close.iloc[-1] / close.iloc[-90] - 1.0) if len(close) >= 90 else 0.0
+    # Relative strength vs peers, both measured over the same 90 sessions
+    window = 90
+    base_ret = _window_return(df, window)
     peer_rets = []
     for p in peers:
         try:
-            pdf = get_price_history(p, period="6mo", interval="1d")
-            peer_rets.append(float(pdf["Close"].iloc[-1] / pdf["Close"].iloc[0] - 1.0))
-        except Exception:
+            peer_ret = _window_return(get_price_history(p, period="1y", interval="1d"), window)
+        except Exception as exc:
+            log.warning("Peer %s unavailable for %s: %s", p, ticker, exc)
             continue
-    rel = base_ret - (sum(peer_rets) / len(peer_rets)) if peer_rets else 0.0
+        if peer_ret is not None:
+            peer_rets.append(peer_ret)
+    rel = (base_ret - sum(peer_rets) / len(peer_rets)
+           if peer_rets and base_ret is not None else None)
 
     return {
+        "as_of": as_of(df),
         "momentum_12_1": mom_12_1,
         "volatility_60d": vol_60,
         "rel_strength_vs_peers": rel,
@@ -254,12 +268,10 @@ _SECTOR_ETF = {
 
 
 def _window_return(df, days: int) -> float | None:
+    """Return over the last `days` sessions, or None if history is too short."""
     if df is None or len(df) < days + 1:
         return None
-    try:
-        return float(df["Close"].iloc[-1] / df["Close"].iloc[-days] - 1.0)
-    except Exception:
-        return None
+    return float(df["Close"].iloc[-1] / df["Close"].iloc[-(days + 1)] - 1.0)
 
 
 def _beta(ticker_df, market_df) -> float | None:
@@ -314,6 +326,7 @@ def get_etf_landscape(ticker: str) -> dict:
     vol_ratio = (recent_5 / avg_60) if (avg_60 and avg_60 > 0) else None
 
     return {
+        "as_of": as_of(ticker_df),
         "sector": sector,
         "sector_etf": sector_etf,
         "ticker_return_1m":     _window_return(ticker_df, 21),
@@ -346,6 +359,7 @@ def compute_statistical_patterns(ticker: str) -> dict:
     else:
         regime = "mixed"
     return {
+        "as_of": as_of(df),
         "autocorr_1d": ac1,
         "autocorr_5d": ac5,
         "monthly_seasonality": {int(k): float(v) for k, v in by_month.items()},
