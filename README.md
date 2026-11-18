@@ -47,28 +47,10 @@ The premise is diversity in thought process: desks that read different evidence 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/committee-dark.svg">
-  <img src="docs/assets/committee-light.svg" width="100%" alt="The eight desks and their weights. The same data is in the table below.">
+  <img src="docs/assets/committee-light.svg" width="100%" alt="The eight desks and their weights: J.P. Morgan (Fundamental) 25%, Bridgewater Associates (All-Weather Macro) 18%, Goldman Sachs (Technical) 12%, Citadel (Quantitative) 12%, Jane Street (ETF and Basket Flow) 10%, D. E. Shaw (Options-Derived) 10%, Renaissance Technologies (Pattern Recognition) 8%, Two Sigma (Backtest Sanity) 5%.">
 </picture>
 
 Each desk has its own analysis framework, its own data and its own voice. All eight return the same structured verdict: a recommendation, a conviction from 1 to 10, an optional 6-month price target, thesis bullets, risks, and the data points cited.
-
-<details>
-<summary>The committee as a table</summary>
-
-<br>
-
-| Desk | Discipline | Weight |
-|---|---|---:|
-| J.P. Morgan | Fundamental | 25% |
-| Bridgewater Associates | All-Weather Macro | 18% |
-| Goldman Sachs | Technical | 12% |
-| Citadel | Quantitative | 12% |
-| Jane Street | ETF & Basket Flow | 10% |
-| D. E. Shaw | Options-Derived | 10% |
-| Renaissance Technologies | Pattern Recognition | 8% |
-| Two Sigma | Backtest Sanity | 5% |
-
-</details>
 
 <br>
 
