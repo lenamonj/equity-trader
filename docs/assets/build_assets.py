@@ -159,20 +159,22 @@ def committee(f: dict, t: dict) -> str:
     ]
     cw, ch, gap = 277, 176, 20
     top_weight = max(AGENT_WEIGHTS.values())
+    # Every bar starts at the same x, clear of the widest weight label.
+    bar_x = 22 + round(max(f["display"].width(f"{w:.0f}%", 46)
+                           for w in AGENT_WEIGHTS.values())) + 16
     for i, (key, firm, discipline) in enumerate(DESKS):
         x = 56 + (i % 4) * (cw + gap)
         y = 104 + (i // 4) * (ch + gap)
         weight = AGENT_WEIGHTS[key]
-        num_w = f["display"].width(f"{weight:.0f}", 46)
         b += [
             rect(x, y, cw, ch, t["card"], t["border"]),
             f["mono"].draw(f"{i + 1:02d}", x + 22, y + 34, 10.5, t["gold"], tracking=0.14),
             f["text"].draw(firm, x + 22, y + 72, 23, t["ink"], max_width=cw - 44),
             f["mono"].draw(discipline.upper(), x + 22, y + 96, 9.5, t["ink4"], tracking=0.16),
-            f["display"].draw(f"{weight:.0f}", x + 22, y + 148, 46, t["brand"]),
-            f["mono"].draw("%", x + 28 + num_w, y + 148, 12, t["ink4"]),
-            rect(x + 120, y + 138, cw - 142, 2, t["track"], rx=1),
-            rect(x + 120, y + 138, (cw - 142) * weight / top_weight, 2, t["gold"], rx=1),
+            f["display"].draw(f"{weight:.0f}%", x + 22, y + 148, 46, t["brand"]),
+            rect(x + bar_x, y + 138, cw - bar_x - 22, 2, t["track"], rx=1),
+            rect(x + bar_x, y + 138, (cw - bar_x - 22) * weight / top_weight, 2, t["gold"],
+                 rx=1),
         ]
     return svg(516, "The committee: " + ", ".join(
         f"{firm} ({d}) {AGENT_WEIGHTS[k]:.0f}%" for k, firm, d in DESKS), b, t)
