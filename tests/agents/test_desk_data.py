@@ -115,3 +115,9 @@ def test_only_a_desk_whose_discipline_prices_the_stock_can_set_a_target(name):
     else:
         assert "price_target_6mo" not in fields
         assert "REQUIRED from this desk" not in prompt
+
+
+def test_the_options_desk_prices_inside_the_horizon_and_dates_readings_when_observed():
+    prompt = " ".join(_module("de_shaw_options").INSTRUCTIONS.split())
+    assert "the latest expiry in `options_surface` that falls within six months of today" in prompt
+    assert "never an expiry date" in prompt

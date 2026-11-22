@@ -203,3 +203,16 @@ def test_a_stock_with_no_sector_etf_has_no_sector_comparison(monkeypatch):
         "2026-11-12", None, None)
     assert top["move"] == 0.13
     assert np.isfinite(top["volume_vs_50d_avg"])
+
+
+@respx.mock
+def test_a_filing_read_before_the_lookback_is_left_out(monkeypatch):
+    # An old earnings move is not a recent event, however large it was.
+    respx.get(NEWS).mock(return_value=httpx.Response(200, text=feed()))
+    monkeypatch.setattr(ev, "_LOOKBACK", 10)       # sessions; 2026-11-05 is twelve back
+    by_session = events(monkeypatch, [RESIGNATION, RESULTS])
+    assert "2026-11-12" in by_session and "2026-11-05" not in by_session
+
+
+def test_events_look_back_six_months_of_sessions():
+    assert ev._LOOKBACK == 126

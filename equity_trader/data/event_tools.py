@@ -24,13 +24,15 @@ log = logging.getLogger(__name__)
 _MARKET_TIME = "America/New_York"
 _CLOSE_HOUR = 16
 _MATERIAL_MOVE = 0.10  # a session move this large must be addressed by the chair
+_LOOKBACK = 126        # sessions: an 8-K read earlier than this is not a recent event
 _EXCERPT = 500         # characters of a filing's text
 _NEWS_URL = "https://news.google.com/rss/search"
 _NEWS_PAUSE = 0.5      # seconds between requests to the feed
 _HEADLINES = 6
 _TITLE_LIMIT = 200     # characters
 _NOTES = (
-    "One entry per session, largest move first. A filing accepted after the "
+    "One entry per session, largest move first: the 8-Ks of the last six "
+    "months and the heaviest-volume sessions of the last 60. A filing accepted after the "
     "4pm close is read on the next session. opening_gap is the open against "
     "the prior close, volume_vs_50d_avg is that session's volume over its "
     "50-day average, and return_vs_sector_etf is the close-to-close return "
@@ -103,8 +105,9 @@ def _reaction_session(accepted: str, sessions: pd.DatetimeIndex) -> pd.Timestamp
 
 @cached_for_run
 def get_recent_events(ticker: str) -> dict:
-    """The five most recent 8-Ks and the heaviest-volume sessions of the last
-    60, each with that session's price reaction and the press headlines."""
+    """The 8-Ks of the last six months, among the five most recent, and the
+    heaviest-volume sessions of the last 60, each with that session's price
+    reaction and the press headlines."""
     bars = technical_tools.history(ticker)
     bars = bars.set_axis(bars.index.tz_localize(None).normalize())
     info = yft.get_info(ticker)
@@ -129,8 +132,11 @@ def get_recent_events(ticker: str) -> dict:
         return by_session.setdefault(key, {"session": session, "filings": [],
                                            "heavy_volume": False})
 
+    oldest = bars.index[-min(_LOOKBACK, len(bars))]
     for filing in edgar_tools.get_recent_8ks(ticker):
         session = _reaction_session(filing["accepted"], bars.index)
+        if session is not None and session < oldest:
+            continue
         event(session or filing["filing_date"], session)["filings"].append({
             "filing_date": filing["filing_date"], "items": filing["items"],
             "excerpt": filing["text"][:_EXCERPT] if filing["text"] else None})

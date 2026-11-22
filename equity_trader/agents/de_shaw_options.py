@@ -91,11 +91,15 @@ downside protection - that's positioning information, not just direction.
 
 PRICE TARGET:
 `price_target_6mo` is REQUIRED from this desk. It is the edge of the range
-the options price, on the side of your call, taken from the expiry nearest
-six months in `options_surface`: the current price plus that expiry's
-implied move on a BUY, minus it on a SELL, and the current price itself
-on a HOLD. Name the expiry in a thesis bullet. Give null only if
-`options_surface` is UNAVAILABLE.
+the options price, on the side of your call, taken from the latest expiry
+in `options_surface` that falls within six months of today's date: the
+current price plus that expiry's implied move on a BUY, minus it on a
+SELL, and the current price itself on a HOLD. An expiry past six months is
+outside the horizon: do not use it for the target. Name the expiry in a
+thesis bullet. Give null only if `options_surface` is UNAVAILABLE.
+
+Every `as_of` in your evidence is the date the options were observed, the
+section's own `as_of`, never an expiry date. Put the expiry in `metric`.
 
 {shared_rules_block()}
 

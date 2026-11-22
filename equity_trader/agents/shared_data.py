@@ -29,8 +29,9 @@ def sector_macro(ticker: str) -> dict:
 
 
 def recent_events(ticker: str) -> dict:
-    """The five most recent 8-K filings and the heaviest-volume sessions of the
-    last 60, joined in code to each session's opening gap, close-to-close
+    """The 8-K filings of the last six months, among the five most recent, and
+    the heaviest-volume sessions of the last 60, joined in code to each session's
+    opening gap, close-to-close
     return, volume against its 50-day average and return against the sector
     ETF, with up to six press headlines per event. Ranked by size of move."""
     return event_tools.get_recent_events(ticker)

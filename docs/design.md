@@ -62,7 +62,7 @@ Two principles govern what a desk is given:
 | Company snapshot | Today's date, price, market cap, sector, industry, 52-week range, beta, dollar volume, next earnings date, short interest and its change, ownership |
 | Macro dashboard | About fifty FRED series in eight groups: rates, inflation, growth, labor, credit, liquidity, markets, recession. Each with its value now, three months ago and a year ago, and its ten-year percentile. Also the scheduled CPI, jobs, GDP and PCE releases |
 | Sector macro | FRED series that drive the ticker's sector |
-| Recent events | The five most recent 8-Ks and the three heaviest-volume sessions of the last 60, each joined in code to that session's opening gap, close-to-close return, volume against its 50-day average and return against the sector ETF, with up to six press headlines |
+| Recent events | The 8-Ks of the last six months, among the five most recent, and the three heaviest-volume sessions of the last 60, each joined in code to that session's opening gap, close-to-close return, volume against its 50-day average and return against the sector ETF, with up to six press headlines |
 
 ### Desk data
 
@@ -177,6 +177,7 @@ Statements come from the SEC, not from a market data vendor. `get_financial_stat
 
 `get_recent_events` in `event_tools.py` joins what happened to what the market made of it, because no desk reads both the filings and the price bars. There is one entry per session:
 
+- Only an 8-K read in the last 126 sessions counts. A seven-month-old earnings move once ranked first and the chair had to address it.
 - An 8-K is read on the session that could first trade on it. The SEC's acceptance time decides: a filing accepted at or after 4pm New York time belongs to the next session.
 - The three heaviest-volume sessions of the last 60 are added. One with no 8-K is marked `unexplained`.
 - Each entry carries the opening gap, the close-to-close return, volume against its 50-day average, the sector ETF's return and the difference. `move` is the larger of the gap and the return in absolute terms. Entries are ranked by it, and `material` marks a move of 10% or more.
