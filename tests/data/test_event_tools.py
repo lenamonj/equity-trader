@@ -144,10 +144,10 @@ def test_headlines_are_asked_for_around_each_event(monkeypatch):
     ev.get_recent_events("ACME")
     asked = {call.request.url.params["q"] for call in route.calls}
     assert asked == {
-        "Acme after:2026-11-11 before:2026-11-13",
-        "Acme after:2026-11-17 before:2026-11-19",
-        "Acme after:2026-11-03 before:2026-11-06",     # from the filing to its session
-        "Acme after:2026-10-19 before:2026-10-21"}
+        "Acme stock after:2026-11-11 before:2026-11-13",
+        "Acme stock after:2026-11-17 before:2026-11-19",
+        "Acme stock after:2026-11-03 before:2026-11-06",     # from the filing to its session
+        "Acme stock after:2026-10-19 before:2026-10-21"}
 
 
 @respx.mock
@@ -186,6 +186,7 @@ def test_a_feed_that_cannot_be_read_leaves_headlines_null(monkeypatch):
     ("The Coca-Cola Company", "Coca-Cola"),
     ("Amazon.com, Inc.", "Amazon"),
     ("Shell plc", "Shell"),
+    ("Eli Lilly and Company", "Eli Lilly"),
 ])
 def test_the_company_is_searched_for_by_its_plain_name(legal, plain):
     assert ev.company_name(legal) == plain

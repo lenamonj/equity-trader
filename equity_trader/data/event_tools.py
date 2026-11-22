@@ -43,7 +43,7 @@ _NOTES = (
 )
 
 _LEGAL_SUFFIX = re.compile(
-    r"(\.com)?[\s,&]*\b(incorporated|inc|corporation|corp|company|co|limited|ltd|plc|"
+    r"(\.com)?(\s+and)?[\s,&]*\b(incorporated|inc|corporation|corp|company|co|limited|ltd|plc|"
     r"holdings|group|llc|n\.v|s\.a|ag|se)\.?$", re.IGNORECASE)
 
 
@@ -81,7 +81,9 @@ def _headlines(company: str, start: date, end: date) -> list[dict] | None:
     try:
         response = httpx.get(
             _NEWS_URL, timeout=15.0, follow_redirects=True,
-            params={"q": f"{company} after:{start} before:{end}",
+            # "stock" keeps a name that is also a common word, such as Target,
+            # on stories about the company.
+            params={"q": f"{company} stock after:{start} before:{end}",
                     "hl": "en-US", "gl": "US", "ceid": "US:en"},
             headers={"User-Agent": "Mozilla/5.0 (compatible; EquityTrader)"})
         response.raise_for_status()
