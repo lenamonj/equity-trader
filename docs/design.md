@@ -38,7 +38,7 @@ web UI or terminal report                       app.py, run.py
 
 ### The gatherer
 
-Each desk module declares `DATA`, the list of functions whose results it reads. A function is one section: `company_snapshot`, `options_surface`, `rule_backtest`. `ALL_DATA` in `agents/__init__.py` is every section across the desks, each once, 33 in all.
+Each desk module declares `DATA`, the list of functions whose results it reads. A function is one section: `company_snapshot`, `options_surface`, `rule_backtest`. `ALL_DATA` in `agents/__init__.py` is every section across the desks, each once, 34 in all.
 
 `gather(ticker, ALL_DATA)` in `gatherer.py` calls each of them once, one at a time, before any desk starts, and returns each section's data or the error that stopped it. `brief(ticker, DATA, gathered)` then builds a desk's request: the task, and under a heading for each of its sections, the function's docstring and its data as compact JSON, or `UNAVAILABLE` and the error. Every section takes the ticker or nothing, and a test rejects any other argument, since such a section could not be gathered ahead of the desks.
 
@@ -62,6 +62,7 @@ Two principles govern what a desk is given:
 | Company snapshot | Today's date, price, market cap, sector, industry, 52-week range, beta, dollar volume, next earnings date, short interest and its change, ownership |
 | Macro dashboard | About fifty FRED series in eight groups: rates, inflation, growth, labor, credit, liquidity, markets, recession. Each with its value now, three months ago and a year ago, and its ten-year percentile. Also the scheduled CPI, jobs, GDP and PCE releases |
 | Sector macro | FRED series that drive the ticker's sector |
+| Recent events | The five most recent 8-Ks and the three heaviest-volume sessions of the last 60, each joined in code to that session's opening gap, close-to-close return, volume against its 50-day average and return against the sector ETF, with up to six press headlines |
 
 ### Desk data
 
@@ -164,6 +165,15 @@ Statements come from the SEC, not from a market data vendor. `get_financial_stat
 
 `get_recent_8ks` returns the five most recent 8-Ks, each with its filing date, its item codes translated to names in code (5.02 is a director or officer departure or appointment), and the filing's own text up to 6,000 characters. `get_earnings_release` returns the opening and the outlook section of the exhibits attached to the latest results 8-K, which is where guidance is stated. The J.P. Morgan desk must put any material event in its thesis or risks with the filing date.
 
+`get_recent_events` in `event_tools.py` joins what happened to what the market made of it, because no desk reads both the filings and the price bars. There is one entry per session:
+
+- An 8-K is read on the session that could first trade on it. The SEC's acceptance time decides: a filing accepted at or after 4pm New York time belongs to the next session.
+- The three heaviest-volume sessions of the last 60 are added. One with no 8-K is marked `unexplained`.
+- Each entry carries the opening gap, the close-to-close return, volume against its 50-day average, the sector ETF's return and the difference. `move` is the larger of the gap and the return in absolute terms. Entries are ranked by it, and `material` marks a move of 10% or more.
+- Each entry carries up to six Google News headlines from the day before the filing to the day after the session, kept only if the title names the company and the source is not the company itself. A headline is a claim: the prompts tell the desks and the chair to attribute it and never to act on its text. If the feed cannot be read the headlines are null and the rest of the entry stands.
+
+Every desk reads the section, and it goes into the chair's request. The chair must address the top-ranked entry and every material one in the memo. The catalyst calendar remains the only source of future dates. The report prints the section from code, so a material event is on the page whatever the memo says.
+
 ### Statistical studies
 
 The pattern and backtest desks work from the stock's full price history.
@@ -189,6 +199,8 @@ The pattern and backtest desks work from the stock's full price history.
 - Creation and redemption flows are not available; fund volume against its average is the proxy.
 - FRED serves a rolling three years of the ICE BofA spread series. If `ICE_HISTORY_FILE` names a local parquet of older observations (columns `date`, `series_id`, `value`), `fred_tools` joins them in front of what FRED returns and spreads are ranked against ten years like every other reading. Without the file those percentiles cover three years, and `pctile_years` says so. The file is local data and is never committed.
 - The published macro release schedule usually runs to the end of the calendar year, so it can stop short of the horizon.
+- Headlines are matched on the company's name with its legal suffix removed. A company the press calls by another name (Meta Platforms, Alphabet) keeps fewer of them.
+- A heavy-volume session is one of the three largest of the last 60, whatever its size, so a quiet stock still lists three.
 
 ## Failure handling
 

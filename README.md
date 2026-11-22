@@ -56,7 +56,7 @@ Each desk has its own analysis framework, its own data and its own voice. All ei
 
 ## What each desk sees
 
-Every desk starts from the same context: today's date and price, the company's sector, next earnings date and short interest, a dashboard of about fifty macro readings with their direction, and the series that drive the company's sector. Then each works with data of its own.
+Every desk starts from the same context: today's date and price, the company's sector, next earnings date and short interest, a dashboard of about fifty macro readings with their direction, the series that drive the company's sector, and the company's recent events with the price reaction to each. Then each works with data of its own.
 
 All of it is computed in code and handed over with dates and sample sizes, so the model interprets numbers instead of producing them.
 
@@ -108,6 +108,7 @@ Every desk's reasoning stays on the page. Nothing is averaged away.
 - **No silent gaps.** A request Yahoo refuses is retried once after a pause and then raises. The desk is told that section is unavailable, so a failed fetch never reads as empty data.
 - **Temporal grounding.** The orchestrator is handed today's date, the current price, and a real catalyst calendar. Any catalyst dated outside the horizon is dropped in code.
 - **Events, not just numbers.** The fundamental desk reads the company's five most recent 8-Ks in full, so a CEO departure, an acquisition or a new guarantee is weighed in the call before it shows up in any statement.
+- **Events joined to price in code.** Each recent 8-K and each heaviest-volume session is joined to that session's opening gap, return, volume and move against the sector ETF, with press headlines. Every desk and the chair read it, the chair must address the largest, and the report prints it from code, so a material event is on the page whatever the memo says.
 - **Dated inputs, honest statistics.** Every reading carries its observation date. Every statistical claim carries its sample size and the baseline it has to beat, so a stale number or a fake edge is visible to the chair.
 - **Graceful degradation.** A failed desk is excluded and its weight is redistributed. Only the runner can mark a desk as failed. If the orchestrator call fails, a mechanical aggregation takes its place.
 
@@ -150,7 +151,7 @@ score = sum( sign(recommendation) * conviction * weight ) / 100
 
 The weights are fixed in code. The orchestrator cannot change them. It reads the score and all eight reports, then writes a 150 to 300 word memo and makes the final call. That call is a judgment and may depart from the score, but a call against the score's sign has to come with a written rationale.
 
-The orchestrator's schema holds only its judgment. The score, the conviction-weighted price target, the run timestamp, the current price, the desks' reports and the sourced catalysts are added in code afterwards, so the model never writes them and cannot alter them. A call against the score's sign with no rationale is flagged on the report.
+The orchestrator's schema holds only its judgment. The score, the conviction-weighted price target, the run timestamp, the current price, the desks' reports, the sourced catalysts and the recent events are added in code afterwards, so the model never writes them and cannot alter them. A call against the score's sign with no rationale is flagged on the report.
 
 <br>
 
@@ -210,6 +211,7 @@ All market data is free. No paid feeds.
 | SEC EDGAR | Financial statements as filed, earnings releases and guidance, the text of recent 8-Ks |
 | yfinance | Prices, valuation multiples, analyst estimates and rating actions, insider transactions, options chains, ETF holdings, earnings and dividend dates |
 | FRED | About fifty macro series on rates, inflation, growth, labor, credit and liquidity, sector series, the data release calendar |
+| Google News RSS | Press headlines around each recent event, attributed to their source |
 
 Companies that file no US-GAAP statements with the SEC, such as IFRS filers, fall back to yfinance statements, and the desk is told which source it received.
 
@@ -251,6 +253,7 @@ equity-trader/
 │   ├── data/
 │   │   ├── cache.py            # per-run ContextVar cache
 │   │   ├── edgar_tools.py      # SEC statements, earnings releases, 8-Ks
+│   │   ├── event_tools.py      # 8-Ks and heavy-volume days joined to price and headlines
 │   │   ├── fred_tools.py       # macro dashboard, sector series, releases
 │   │   ├── yfinance_tools.py   # raw market data access
 │   │   ├── company_tools.py    # snapshot, estimates, insiders, peers, factors
