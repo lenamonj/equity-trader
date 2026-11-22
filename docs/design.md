@@ -221,13 +221,14 @@ The pattern and backtest desks work from the stock's full price history.
 - **Report outside the schema:** OpenAI enforces the schema as the model writes, so this cannot happen there. On a provider that does not, the report fails validation and the desk is treated as failed.
 - **Cited number not in the data:** the reading is kept and marked `in_data: false`, the runner logs it, and the chair is told to treat it as unconfirmed.
 - **Failed desk:** any other exception, or a fourth 429, becomes a HOLD placeholder with `error_note` set. The desk is shown as failed and excluded from the score.
+- **Every desk failed:** there is nothing to base a verdict on. `analyze_ticker` raises `CommitteeFailedError` with the first desk's error, the chair is not called and nothing is saved, so a placeholder can never be graded later as a call the committee made. The UI shows an error card and the CLI reports the ticker as not run.
 - **Failed orchestrator:** a mechanical verdict takes its place: BUY above +1, SELL below -1, HOLD otherwise, with a memo that says the synthesis was unavailable.
 
 ## Interfaces
 
 **Web (`app.py`, `equity_trader/ui.css`).** Gradio. The Analyze tab takes a ticker and streams a loading card that fills in desk by desk, then the report: verdict card, memo, agreements and splits, red flags, sizing, catalysts and seven specialist cards. The History tab lists past runs from SQLite and refreshes when opened.
 
-**Terminal (`run.py`).** `uv run python run.py TICKER` shows a progress line, then the same report with Rich. Given several tickers it runs them in sequence, one committee at a time, and ends with a line per ticker. A ticker that cannot be fetched is reported and skipped, and the command exits with status 1.
+**Terminal (`run.py`).** `uv run python run.py TICKER` shows a progress line, then the same report with Rich. Given several tickers it runs them in sequence, one committee at a time, and ends with a line per ticker. A ticker that cannot be fetched, or on which every desk failed, is reported and skipped, and the command exits with status 1. The whole list runs in one event loop, because the model clients hold connections that belong to the loop they were opened in.
 
 **Grading (`grade.py`, `equity_trader/grading.py`).** `uv run python grade.py` scores every saved run against the stock's forward return. See "Grading" below.
 

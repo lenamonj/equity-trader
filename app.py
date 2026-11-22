@@ -19,7 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()  # Must load before importing equity_trader.runner which triggers agent imports
 
 from equity_trader.config import AGENT_NAMES, AGENT_PERSONAS
-from equity_trader.exceptions import DataFetchError
+from equity_trader.exceptions import CommitteeFailedError, DataFetchError
 from equity_trader.persistence import list_runs
 from equity_trader.runner import analyze_ticker
 from equity_trader.schemas import AgentVerdict, OrchestratorVerdict, RecentEvent
@@ -552,7 +552,7 @@ async def analyze(ticker: str):
         yield _loading_html(ticker, reported)
     try:
         yield _render_report(task.result())
-    except DataFetchError as exc:
+    except (DataFetchError, CommitteeFailedError) as exc:
         yield _error_html(ticker, str(exc))
     except Exception as exc:
         log.exception("Run failed for %s", ticker)

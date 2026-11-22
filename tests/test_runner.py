@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from equity_trader import runner as run_mod
+from equity_trader.exceptions import CommitteeFailedError
 from equity_trader.schemas import (
     AgentVerdict,
     DeskReport,
@@ -192,3 +193,23 @@ async def test_a_desks_target_reaches_its_verdict_and_a_desk_without_one_has_non
     out = await run_mod._run_one("citadel_quant", other_desk, "NVDA", GATHERED)
     assert out.price_target_6mo is None
     assert "price_target_6mo" not in DeskReport.model_fields
+
+
+@pytest.mark.asyncio
+async def test_a_run_in_which_every_desk_failed_is_an_error_and_is_not_saved(monkeypatch):
+    from equity_trader.agents import AGENT_NAMES
+
+    async def bad(t, gathered):
+        raise RuntimeError("Event loop is closed")
+
+    chair, saved = AsyncMock(return_value="final"), []
+    monkeypatch.setattr(run_mod, "ALL_AGENTS", [(n, bad) for n in AGENT_NAMES])
+    monkeypatch.setattr(run_mod, "get_quote", lambda t: {"last_price": 190.0})
+    monkeypatch.setattr(run_mod.orchestrator, "run", chair)
+    monkeypatch.setattr(run_mod, "persist", saved.append)
+
+    with pytest.raises(CommitteeFailedError, match="Every desk failed on NVDA") as failure:
+        await run_mod.analyze_ticker("NVDA")
+    assert "RuntimeError: Event loop is closed" in str(failure.value)
+    chair.assert_not_awaited()
+    assert saved == []

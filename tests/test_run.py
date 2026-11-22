@@ -1,11 +1,12 @@
 """The terminal report."""
+import asyncio
 import sys
 
 import pytest
 from rich.console import Console
 
 import run
-from equity_trader.exceptions import TickerNotFoundError
+from equity_trader.exceptions import CommitteeFailedError, TickerNotFoundError
 from equity_trader.schemas import Headline
 from tests.test_app import _events, _verdict
 
@@ -57,14 +58,22 @@ def test_the_terminal_report_says_how_many_desks_the_target_rests_on(monkeypatch
     assert "$210.00 (from 3 of 7 desks)" in target
 
 
-def _batch(monkeypatch, tickers, unknown=()):
+# The event loops the faked committee ran in.
+loops: set = set()
+
+
+def _batch(monkeypatch, tickers, unknown=(), failed=()):
     """Run the command on several tickers with the committee faked."""
     seen = []
+    loops.clear()
 
     async def committee(ticker, on_verdict=None, on_gathered=None):
         seen.append(ticker)
+        loops.add(asyncio.get_running_loop())
         if ticker in unknown:
             raise TickerNotFoundError(ticker)
+        if ticker in failed:
+            raise CommitteeFailedError(ticker, "RuntimeError: boom")
         return _verdict().model_copy(update={"ticker": ticker})
 
     console = Console(record=True, width=200)
@@ -102,3 +111,20 @@ def test_one_ticker_prints_no_summary(monkeypatch):
     seen, console = _batch(monkeypatch, ["MU"])
     run.main()
     assert seen == ["MU"] and "Committee calls" not in console.export_text()
+
+
+def test_a_batch_runs_in_one_event_loop(monkeypatch):
+    # The model clients hold connections that belong to the loop they were
+    # opened in. A loop per ticker left every second ticker with dead ones.
+    seen, _ = _batch(monkeypatch, ["MU", "ORCL", "TGT"])
+    run.main()
+    assert seen == ["MU", "ORCL", "TGT"] and len(loops) == 1
+
+
+def test_a_ticker_on_which_every_desk_failed_is_reported_and_skipped(monkeypatch):
+    seen, console = _batch(monkeypatch, ["MU", "TGT", "ORCL"], failed={"TGT"})
+    with pytest.raises(SystemExit) as stopped:
+        run.main()
+    assert stopped.value.code == 1 and seen == ["MU", "TGT", "ORCL"]
+    text = console.export_text()
+    assert "Every desk failed on TGT" in text and "Not run: TGT" in text

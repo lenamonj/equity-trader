@@ -8,6 +8,7 @@ from equity_trader import orchestrator
 from equity_trader.agents import ALL_AGENTS, ALL_DATA
 from equity_trader.data.cache import reset_run_cache
 from equity_trader.data.yfinance_tools import get_quote
+from equity_trader.exceptions import CommitteeFailedError
 from equity_trader.gatherer import check, gather
 from equity_trader.persistence import persist
 from equity_trader.schemas import AgentVerdict, DeskReport, OrchestratorVerdict
@@ -79,7 +80,8 @@ async def analyze_ticker(
     """Run the committee: the gatherer, then the desks, then the chair.
 
     `on_gathered` is called with what the gatherer fetched once the data is
-    in, and `on_verdict` as each desk reports.
+    in, and `on_verdict` as each desk reports. Raises CommitteeFailedError,
+    and saves nothing, when every desk failed.
     """
     reset_run_cache()
     quote = await asyncio.to_thread(get_quote, ticker)
@@ -103,6 +105,10 @@ async def analyze_ticker(
     verdicts = await asyncio.gather(
         *(_gated(name, fn) for name, fn in ALL_AGENTS)
     )
+    # With no report there is nothing to base a verdict on, and a placeholder
+    # saved as a verdict would later be graded as a call the committee made.
+    if all(verdict.error_note for verdict in verdicts):
+        raise CommitteeFailedError(ticker, verdicts[0].error_note)
     final = await orchestrator.run(ticker, verdicts, current_price,
                                    recent_events=gathered["recent_events"])
     persist(final)

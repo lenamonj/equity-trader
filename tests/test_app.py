@@ -155,3 +155,16 @@ def test_the_verdict_card_says_how_many_desks_the_target_rests_on():
     none = _verdict().model_copy(update={"price_target_6mo": None, "price_target_desks": 0})
     html = app._verdict_html(none)
     assert "No desk gave a target" in html and "of 7 desks" not in html
+
+
+@pytest.mark.asyncio
+async def test_analyze_shows_an_error_card_when_every_desk_failed(monkeypatch):
+    from equity_trader.exceptions import CommitteeFailedError
+
+    async def fake_run(ticker, on_verdict=None, on_gathered=None):
+        raise CommitteeFailedError(ticker, "RuntimeError: boom")
+
+    monkeypatch.setattr(app, "analyze_ticker", fake_run)
+    pages = [page async for page in app.analyze("tgt")]
+    assert "could not convene on TGT" in pages[-1]
+    assert "Every desk failed on TGT. First error: RuntimeError: boom" in pages[-1]

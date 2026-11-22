@@ -12,7 +12,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from equity_trader.config import AGENT_NAMES, AGENT_PERSONAS
-from equity_trader.exceptions import DataFetchError
+from equity_trader.exceptions import CommitteeFailedError, DataFetchError
 from equity_trader.runner import analyze_ticker
 from equity_trader.schemas import OrchestratorVerdict
 
@@ -119,7 +119,7 @@ def render(v: OrchestratorVerdict) -> None:
                            for c in v.catalyst_calendar])
 
 
-def convene(ticker: str) -> OrchestratorVerdict:
+async def convene(ticker: str) -> OrchestratorVerdict:
     """Run the committee on one ticker, showing its progress."""
     reported = 0
     with console.status(f"Convening the committee on {ticker}: gathering data") as status:
@@ -133,8 +133,7 @@ def convene(ticker: str) -> OrchestratorVerdict:
                      else f"{reported} of {len(AGENT_NAMES)} desks reported")
             status.update(f"Convening the committee on {ticker}: {stage}")
 
-        return asyncio.run(analyze_ticker(ticker, on_verdict=on_verdict,
-                                          on_gathered=on_gathered))
+        return await analyze_ticker(ticker, on_verdict=on_verdict, on_gathered=on_gathered)
 
 
 def summarize(verdicts: list[OrchestratorVerdict], not_run: list[str]) -> None:
@@ -159,17 +158,24 @@ def main() -> None:
     parser.add_argument("tickers", nargs="+", metavar="TICKER")
     tickers = [ticker.upper() for ticker in parser.parse_args().tickers]
 
-    verdicts, not_run = [], []
-    for ticker in tickers:
-        try:
-            verdict = convene(ticker)
-        except DataFetchError as exc:
-            # One ticker that cannot be fetched does not cost the rest of the list.
-            console.print(f"[bold red]{exc}[/]")
-            not_run.append(ticker)
-            continue
-        render(verdict)
-        verdicts.append(verdict)
+    async def committee() -> tuple[list[OrchestratorVerdict], list[str]]:
+        verdicts, not_run = [], []
+        for ticker in tickers:
+            try:
+                verdict = await convene(ticker)
+            except (DataFetchError, CommitteeFailedError) as exc:
+                # One ticker that fails does not cost the rest of the list.
+                console.print(f"[bold red]{exc}[/]")
+                not_run.append(ticker)
+                continue
+            render(verdict)
+            verdicts.append(verdict)
+        return verdicts, not_run
+
+    # One event loop for the whole list. The model clients hold connections
+    # that belong to the loop they were opened in, so a loop per ticker left
+    # every second ticker with dead connections and every desk failed.
+    verdicts, not_run = asyncio.run(committee())
     if len(tickers) > 1:
         summarize(verdicts, not_run)
     if not_run:
