@@ -1,3 +1,5 @@
+from datetime import date
+
 import httpx
 import pytest
 import respx
@@ -107,6 +109,85 @@ _FACTS = {"facts": {"us-gaap": {
         _fact(3000, "2025-12-31", "10-K", "2026-02-01"),
     ]}},
 }}}
+
+
+@pytest.fixture(autouse=True)
+def _fixed_today(monkeypatch):
+    # The statement fixtures are dated; staleness is judged against this day.
+    monkeypatch.setattr(et, "_today", lambda: date(2026, 11, 22))
+
+
+def _usd(*facts):
+    return {"units": {"USD": list(facts)}}
+
+
+def _statements(us_gaap: dict) -> dict:
+    reset_run_cache()
+    respx.get("https://www.sec.gov/files/company_tickers.json").mock(
+        return_value=httpx.Response(200, json=_TICKERS_JSON))
+    respx.get("https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json").mock(
+        return_value=httpx.Response(200, json={"facts": {"us-gaap": us_gaap}}))
+    return et.get_financial_statements("AAPL")
+
+
+_REVENUE_NOW = _usd(_fact(2000, "2025-12-31", "10-K", "2026-02-01", "2025-01-01"),
+                    _fact(600, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01"))
+
+
+@respx.mock
+def test_net_income_follows_the_tag_a_company_moved_to():
+    # Caterpillar last filed NetIncomeLoss in 2011 and reports profit under other tags.
+    out = _statements({
+        "NetIncomeLoss": _usd(
+            _fact(700, "2010-12-31", "10-K", "2011-02-01", "2010-01-01"),
+            _fact(60, "2011-09-30", "10-Q", "2011-11-01", "2011-07-01")),
+        "ProfitLoss": _usd(
+            _fact(480, "2025-12-31", "10-K", "2026-02-01", "2025-01-01"),
+            _fact(130, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01")),
+        "NetIncomeLossAvailableToCommonStockholdersBasic": _usd(
+            _fact(470, "2025-12-31", "10-K", "2026-02-01", "2025-01-01"),
+            _fact(128, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01")),
+        "Revenues": _REVENUE_NOW})
+    assert out["xbrl_tags"]["net_income"] == "ProfitLoss"
+    assert (out["annual"][0]["period_end"], out["annual"][0]["net_income"]) == (
+        "2025-12-31", 480)
+    assert (out["quarterly"][0]["period_end"], out["quarterly"][0]["net_income"]) == (
+        "2026-09-30", 130)
+    # The desk is told what the figure is.
+    assert "before the share of noncontrolling interests" in out["notes"]
+
+
+@respx.mock
+def test_a_tag_with_recent_quarters_but_no_full_year_is_passed_over():
+    # Freeport began filing NetIncomeLoss in 2026: quarters, and no annual figure yet.
+    out = _statements({
+        "NetIncomeLoss": _usd(_fact(50, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01")),
+        "ProfitLoss": _usd(
+            _fact(480, "2025-12-31", "10-K", "2026-02-01", "2025-01-01"),
+            _fact(130, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01")),
+        "Revenues": _REVENUE_NOW})
+    assert out["xbrl_tags"]["net_income"] == "ProfitLoss"
+    assert out["annual"][0]["period_end"] == "2025-12-31"
+
+
+@respx.mock
+def test_net_income_as_filed_is_preferred_when_it_is_current():
+    out = _statements({
+        "NetIncomeLoss": _usd(_fact(450, "2025-12-31", "10-K", "2026-02-01", "2025-01-01")),
+        "ProfitLoss": _usd(_fact(480, "2025-12-31", "10-K", "2026-02-01", "2025-01-01")),
+        "Revenues": _REVENUE_NOW})
+    assert out["xbrl_tags"]["net_income"] == "NetIncomeLoss"
+    assert out["annual"][0]["net_income"] == 450
+    assert "noncontrolling" not in out["notes"]
+
+
+@respx.mock
+def test_statements_that_ended_long_ago_are_refused():
+    # Old statements must never be handed to a desk as the company's current ones.
+    with pytest.raises(DataFetchError, match="end 2010-12-31"):
+        _statements({
+            "NetIncomeLoss": _usd(_fact(700, "2010-12-31", "10-K", "2011-02-01", "2010-01-01")),
+            "Revenues": _usd(_fact(9000, "2010-12-31", "10-K", "2011-02-01", "2010-01-01"))})
 
 
 @respx.mock

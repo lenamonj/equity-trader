@@ -139,7 +139,8 @@ def get_recent_8ks(ticker: str, n: int = 5) -> list[dict]:
 
 
 # Line item -> candidate US-GAAP tags. Companies differ in which tag they
-# file, so the candidate reported most recently is the one used.
+# file, and some move from one to another, so the candidate with the most
+# recent full-year figure is the one used.
 _FLOW_TAGS = {
     "revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax",
                 "RevenueFromContractWithCustomerIncludingAssessedTax",
@@ -148,7 +149,10 @@ _FLOW_TAGS = {
     "operating_income": ["OperatingIncomeLoss"],
     "pretax_income": ["IncomeLossFromContinuingOperationsBeforeIncomeTaxes"
                       "ExtraordinaryItemsNoncontrollingInterest"],
-    "net_income": ["NetIncomeLoss"],
+    # Caterpillar last filed NetIncomeLoss in 2011 and Occidental in early
+    # 2024; both report profit under the other two tags.
+    "net_income": ["NetIncomeLoss", "ProfitLoss",
+                   "NetIncomeLossAvailableToCommonStockholdersBasic"],
     "eps_diluted": ["EarningsPerShareDiluted"],
     "diluted_shares": ["WeightedAverageNumberOfDilutedSharesOutstanding"],
     "operating_cash_flow": ["NetCashProvidedByUsedInOperatingActivities"],
@@ -178,6 +182,18 @@ _INSTANT_TAGS = {
 # A year-to-date figure for these cannot be differenced into a quarter.
 _AS_FILED_ONLY = {"eps_diluted", "diluted_shares"}
 _PERIODIC_FORMS = ("10-K", "10-Q", "20-F", "40-F")
+# The latest fiscal year is at most about fifteen months old on the day
+# before the next annual report is filed. Statements older than this are not
+# the company's current ones, whatever the reason.
+_STALE_DAYS = 500
+# What net income means when it is not filed under NetIncomeLoss.
+_NET_INCOME_NOTES = {
+    "ProfitLoss": (" net_income here is consolidated profit, before the share of "
+                   "noncontrolling interests is taken out."),
+    "NetIncomeLossAvailableToCommonStockholdersBasic": (
+        " net_income here is income available to common stockholders, after preferred "
+        "dividends."),
+}
 _STATEMENT_NOTES = (
     "Quarterly figures are single quarters. Where filings give only "
     "year-to-date figures (cash flow items, fourth quarters), the quarter is "
@@ -188,6 +204,10 @@ _STATEMENT_NOTES = (
     "`period_end` when citing a figure. A null means the company does not report "
     "that line under a tag this tool reads."
 )
+
+
+def _today() -> date:
+    return date.today()
 
 
 def _company_facts(cik: str) -> dict:
@@ -214,18 +234,22 @@ def _is_year(start: str, end: str) -> bool:
 
 
 def _series(gaap: dict, tags: list[str]) -> tuple[str | None, dict]:
-    """Facts for whichever candidate tag was reported most recently.
+    """Facts for whichever candidate tag has the most recent full-year figure,
+    then the most recent period of any length. Ties go to the earlier candidate.
 
     Returns the tag and {(start, end): (value, first_filed, form, fiscal_year,
     fiscal_period)}. `start` is None for balance sheet items. The latest
     filing's value wins; the filing details are those of the first report.
     """
-    best: tuple[str, str, list[dict]] | None = None
+    best: tuple[tuple[str, str], str, list[dict]] | None = None
     for tag in tags:
         rows = [r for unit_rows in gaap.get(tag, {}).get("units", {}).values()
                 for r in unit_rows if r["form"].startswith(_PERIODIC_FORMS)]
         if rows:
-            latest = max(r["end"] for r in rows)
+            # A tag a company has just moved to has quarters and no year yet;
+            # one it has left has years and no recent quarter.
+            years = [r["end"] for r in rows if r.get("start") and _is_year(r["start"], r["end"])]
+            latest = (max(years, default=""), max(r["end"] for r in rows))
             if best is None or latest > best[0]:
                 best = (latest, tag, rows)
     if best is None:
@@ -295,6 +319,9 @@ def get_financial_statements(ticker: str, years: int = 5, quarters: int = 6) -> 
     annual_ends = sorted({e for (s, e) in anchor if s and _is_year(s, e)}, reverse=True)
     if not annual_ends:
         raise DataFetchError(f"No US-GAAP annual statements on EDGAR for {ticker}")
+    if (_today() - date.fromisoformat(annual_ends[0])).days > _STALE_DAYS:
+        raise DataFetchError(
+            f"US-GAAP statements on EDGAR for {ticker} end {annual_ends[0]}")
     quarter_ends = sorted({e for (s, e) in anchor if s}, reverse=True)
 
     def value(name: str, end: str, annual: bool) -> float | None:
@@ -374,7 +401,7 @@ def get_financial_statements(ticker: str, years: int = 5, quarters: int = 6) -> 
         "annual": [row(annual_ends, i, True) for i in range(min(years, len(annual_ends)))],
         "quarterly": [row(quarter_ends, i, False)
                       for i in range(min(quarters, len(quarter_ends)))],
-        "notes": _STATEMENT_NOTES,
+        "notes": _STATEMENT_NOTES + _NET_INCOME_NOTES.get(tags.get("net_income"), ""),
     }
 
 

@@ -167,7 +167,8 @@ Statements come from the SEC, not from a market data vendor. `get_financial_stat
 
 - Each period carries its fiscal label (for example `Q2 FY2027`), how many periods ago it is, its period end, form and first filing date. Values reflect any later restatement.
 - Margins, growth rates, coverage and leverage are computed per period, with a summary of three and five year revenue growth and trailing-twelve-month totals.
-- Companies file different XBRL tags for the same line. The candidate tag reported most recently is used, and the output names it.
+- Companies file different XBRL tags for the same line, and some move from one to another. The candidate tag with the most recent full-year figure is used, and the output names it. Net income is read from `NetIncomeLoss`, then `ProfitLoss`, then income available to common stockholders, and the notes say which meaning applies. Before 2026-11-22 only `NetIncomeLoss` was read: Caterpillar last filed it in 2011 and Occidental in early 2024, so their desks were handed statements that old.
+- Statements whose latest fiscal year ended more than 500 days ago are refused, so old statements are never handed over as current. The desk falls back to yfinance and is told so.
 - Filings give cash flow items and fourth quarters only as year-to-date figures. A single quarter is the difference between consecutive year-to-date figures. Per-share figures are never derived.
 - A company with no US-GAAP annual statements on EDGAR (IFRS filers, funds) falls back to a compact set of yfinance statements. The `source` field says which was used.
 
