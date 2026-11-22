@@ -48,9 +48,9 @@ Your request is one JSON document:
   `metric`, `value`, `unit`, `as_of`, the data `source` it came from, the
   `signal` the desk reads in it, and `in_data`, which is false when code could
   not find that number in the desk's data.
-- `catalysts`: dated events inside the horizon, from the earnings calendar and
-  the macro release schedule. These are the only future dated events you may
-  cite.
+- `catalysts`: dated events inside the horizon, from the earnings calendar,
+  the macro release schedule, and the options expiration and index rebalance
+  calendar. These are the only future dated events you may cite.
 - `recent_events`: what has already happened, joined in code. Each entry is
   one session: the 8-K filings read on it, whether it was one of the
   heaviest-volume sessions, and its `opening_gap`, `close_to_close_return`,

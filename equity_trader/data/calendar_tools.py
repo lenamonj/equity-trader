@@ -11,7 +11,7 @@ from datetime import date, timedelta
 
 import yfinance as yf
 
-from equity_trader.data import fred_tools
+from equity_trader.data import fred_tools, market_tools
 from equity_trader.data.cache import cached_for_run
 
 log = logging.getLogger(__name__)
@@ -53,7 +53,8 @@ def get_real_catalysts(ticker: str, today: date,
 
     Each entry: {event, date (ISO), expected_impact, notes}. Earnings and
     dividend dates come from yfinance's calendar; scheduled CPI, jobs, GDP and
-    PCE releases come from FRED's release calendar.
+    PCE releases come from FRED's release calendar; options expirations and
+    index rebalances are computed from the calendar.
     """
     out: list[dict] = []
     cal = _calendar(ticker)
@@ -88,4 +89,10 @@ def get_real_catalysts(ticker: str, today: date,
     out += [{"event": f"{release['release']} release", "date": release["date"],
              "expected_impact": "MEDIUM", "notes": "Source: FRED release calendar"}
             for release in fred_tools.get_release_calendar(horizon_days)]
+    # The dates two desks read as `index_event_calendar`. The chair may cite no
+    # future date outside this list, so every date a desk is given is in it.
+    out += [{"event": event["event"], "date": event["date"],
+             "expected_impact": "MEDIUM" if "rebalance" in event["event"] else "LOW",
+             "notes": "Source: computed from the calendar"}
+            for event in market_tools.index_event_calendar(today, horizon_days)]
     return sorted(out, key=lambda c: c["date"])

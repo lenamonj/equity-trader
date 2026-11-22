@@ -180,8 +180,32 @@ def test_catalysts_include_scheduled_macro_releases(monkeypatch):
     monkeypatch.setattr(calendar_tools.fred_tools, "get_release_calendar",
                         lambda horizon_days: [{"date": "2026-12-10", "release": "CPI"}])
     out = calendar_tools.get_real_catalysts("NVDA", date(2026, 11, 17))
-    assert [(c["date"], c["event"], c["expected_impact"]) for c in out] == [
+    assert [(c["date"], c["event"], c["expected_impact"]) for c in out
+            if "expiration" not in c["event"]] == [
         ("2026-11-20", "Earnings release", "HIGH"), ("2026-12-10", "CPI release", "MEDIUM")]
+
+
+def test_catalysts_include_every_date_the_desks_are_given(monkeypatch):
+    # The chair may cite no future date outside `catalysts`, so the options
+    # expirations and index rebalances two desks read must be in it.
+    from equity_trader.data import calendar_tools, market_tools
+    monkeypatch.setattr(calendar_tools, "_calendar", lambda ticker: {})
+    monkeypatch.setattr(calendar_tools.fred_tools, "get_release_calendar",
+                        lambda horizon_days: [])
+    today = date(2026, 11, 17)
+    out = calendar_tools.get_real_catalysts("NVDA", today)
+    assert [(c["date"], c["event"]) for c in out] == [
+        (e["date"], e["event"]) for e in market_tools.index_event_calendar(today)]
+    assert len(out) == 6
+    assert (out[0]["event"], out[0]["expected_impact"]) == ("Monthly options expiration", "LOW")
+    assert out[1]["date"] == "2026-12-18" and "rebalance" in out[1]["event"]
+    assert out[1]["expected_impact"] == "MEDIUM"
+    assert out[0]["notes"] == "Source: computed from the calendar"
+
+
+def test_the_chair_is_told_where_catalysts_come_from():
+    text = " ".join(orch._INSTRUCTIONS.split())
+    assert "options expiration and index rebalance" in text
 
 
 @pytest.mark.asyncio

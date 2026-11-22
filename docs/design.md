@@ -134,7 +134,7 @@ The orchestrator model writes the memo, the agreements and splits, the red flags
 | `agent_verdicts` | the eight reports as received and checked |
 | `catalyst_calendar` | the sourced catalysts, and nothing else |
 
-Sourced catalysts are the company's earnings and dividend dates and the scheduled CPI, jobs, GDP and PCE releases. The chair is given them and may cite them, but it has no field in which to write a date of its own.
+Sourced catalysts are the company's earnings and dividend dates, the scheduled CPI, jobs, GDP and PCE releases, and the options expirations and index rebalances that two desks read as `index_event_calendar`. Every future date a desk is given is in the list, so the chair never has to discard one a desk cites. The chair is given them and may cite them, but it has no field in which to write a date of its own.
 
 ### The price target
 
