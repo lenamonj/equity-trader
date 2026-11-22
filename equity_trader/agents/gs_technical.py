@@ -3,7 +3,7 @@ from agents import Runner
 from equity_trader.agents.base import build_agent, shared_rules_block
 from equity_trader.agents.shared_data import SHARED_DATA, relative_strength
 from equity_trader.config import AGENT_MODELS
-from equity_trader.data import technical_tools
+from equity_trader.data import market_tools, technical_tools
 from equity_trader.data import yfinance_tools as yft
 from equity_trader.gatherer import brief
 from equity_trader.schemas import DeskReport, desk_report_for
@@ -37,6 +37,13 @@ def volume_analysis(ticker: str) -> dict:
     """Whether volume confirms the trend: up against down volume, on-balance
     volume, accumulation and distribution days, and the heaviest recent days."""
     return technical_tools.volume_analysis(ticker)
+
+
+def etf_exposure(ticker: str) -> dict:
+    """The stock's weight and rank in SPY, QQQ, its sector ETF and the largest
+    ETFs in its sector, each fund's assets and volume against average, plus
+    the stock's own liquidity: dollar volume, float turnover and price impact."""
+    return market_tools.etf_exposure(ticker)
 
 
 INSTRUCTIONS = f"""You are a VP-level technical strategist at Goldman Sachs
@@ -75,6 +82,10 @@ YOUR DATA:
   price acts as resistance.
 - `volume_analysis`: the volume evidence.
 - `relative_strength`: the stock against the market and its sector.
+- `etf_exposure`: the stock's weight in SPY, QQQ and its sector ETF, and
+  its own liquidity. A stock that is a large part of its sector ETF drags
+  the ETF with it, so its relative strength against that ETF understates
+  its own move: read `relative_strength` with the weight in mind.
 - `price_history`: the last 120 daily bars, for chart patterns only.
 
 Cite the actual numbers, not vague "above the 50dma."
@@ -96,7 +107,7 @@ not a free-form technical note.
 
 # What this desk reads. The gatherer fetches it; `run` hands it over.
 DATA = [*SHARED_DATA, technicals, key_levels, volume_analysis, relative_strength,
-        price_history]
+        etf_exposure, price_history]
 
 agent = build_agent(
     name=AGENT_NAME,

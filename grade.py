@@ -12,7 +12,7 @@ from rich.console import Console
 from rich.table import Table
 
 from equity_trader import grading
-from equity_trader.config import AGENT_PERSONAS
+from equity_trader.config import AGENT_PERSONAS, RETIRED_DESKS
 from equity_trader.data import yfinance_tools as yft
 
 # A redirected stdout on Windows defaults to cp1252.
@@ -32,7 +32,11 @@ def _pct(x: float, signed: bool = True) -> str:
 
 
 def _caller(who: str) -> str:
-    return "Committee" if who == "committee" else AGENT_PERSONAS.get(who, (who,))[0]
+    if who == "committee":
+        return "Committee"
+    if who in RETIRED_DESKS:
+        return f"{RETIRED_DESKS[who]} (retired)"
+    return AGENT_PERSONAS[who][0]
 
 
 def render(graded: pd.DataFrame) -> None:

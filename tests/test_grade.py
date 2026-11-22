@@ -41,3 +41,8 @@ def test_the_report_lists_the_committees_calls_run_by_run(monkeypatch):
 
 def test_the_report_warns_that_runs_on_one_day_are_one_observation(monkeypatch):
     assert "one observation" in _printed(monkeypatch, RUNS)
+
+
+def test_a_retired_desk_is_labelled_in_the_report(monkeypatch):
+    runs = [run("2026-02-10T21:30:00Z", "BUY", [("jane_street_etf", "SELL", 8, None)])]
+    assert "Jane Street (retired)" in _printed(monkeypatch, runs)

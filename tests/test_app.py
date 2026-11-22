@@ -94,7 +94,7 @@ def test_report_renders_every_desk_and_escapes_model_text():
 def test_loading_card_shows_calls_of_desks_that_reported():
     html = app._loading_html("NVDA", {"jpm_fundamental": _desk("jpm_fundamental", "BUY"),
                                       "gs_technical": _desk("gs_technical", err="boom")})
-    assert "2 of 8 desks reported" in html
+    assert "2 of 7 desks reported" in html
     assert "J.P. Morgan . BUY" in html
     assert "Goldman Sachs . failed" in html
 
@@ -111,7 +111,7 @@ async def test_analyze_streams_progress_then_the_report(monkeypatch):
     pages = [page async for page in app.analyze(" nvda ")]
     assert "Convening the committee on NVDA" in pages[0]
     assert "The gatherer is collecting the data" in pages[0]
-    assert "Eight specialists at work" in pages[1]
+    assert "Seven specialists at work" in pages[1]
     assert "verdict-card" in pages[-1]
 
 
@@ -151,7 +151,7 @@ def test_a_report_says_so_when_recent_events_could_not_be_gathered():
 
 
 def test_the_verdict_card_says_how_many_desks_the_target_rests_on():
-    assert "from 3 of 8 desks" in app._verdict_html(_verdict())
+    assert "from 3 of 7 desks" in app._verdict_html(_verdict())
     none = _verdict().model_copy(update={"price_target_6mo": None, "price_target_desks": 0})
     html = app._verdict_html(none)
-    assert "No desk gave a target" in html and "of 8 desks" not in html
+    assert "No desk gave a target" in html and "of 7 desks" not in html

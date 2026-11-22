@@ -127,7 +127,7 @@ def main() -> None:
     reported = 0
     with console.status(f"Convening the committee on {ticker}: gathering data") as status:
         def on_gathered(_) -> None:
-            status.update(f"Convening the committee on {ticker}: eight desks at work")
+            status.update(f"Convening the committee on {ticker}: seven desks at work")
 
         def on_verdict(_) -> None:
             nonlocal reported

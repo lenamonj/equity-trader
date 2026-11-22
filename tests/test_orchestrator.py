@@ -164,7 +164,7 @@ def test_the_chair_is_handed_one_json_document():
     goldman, morgan = doc["desks"]
     assert (goldman["agent"], goldman["house"], goldman["discipline"]) == (
         "gs_technical", "Goldman Sachs", "Technical")
-    assert goldman["weight"] == 16.0  # 12 of the 75 left once the failed desk drops out
+    assert goldman["weight"] == 18.1  # 13 of the 72 left once the failed desk drops out
     assert goldman["report"]["evidence"] == [{
         "metric": "RSI, 14-day", "value": 16.0, "unit": "index", "as_of": "2026-11-17",
         "source": "technicals", "signal": "bearish", "in_data": True}]

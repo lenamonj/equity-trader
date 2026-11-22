@@ -15,8 +15,8 @@ from equity_trader.schemas import AgentVerdict, DeskReport, OrchestratorVerdict
 log = logging.getLogger(__name__)
 
 
-# Cap parallel LLM calls to stay under OpenAI per-org rate limits: eight
-# agents firing at once hit 429s on Tier-1 accounts. Three at a time keeps
+# Cap parallel LLM calls to stay under OpenAI per-org rate limits: every
+# agent firing at once hit 429s on Tier-1 accounts. Three at a time keeps
 # headroom, and a full ticker run takes a little over two minutes.
 _AGENT_CONCURRENCY = 3
 

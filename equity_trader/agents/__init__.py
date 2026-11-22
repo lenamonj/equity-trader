@@ -3,7 +3,6 @@ from equity_trader.agents import (
     citadel_quant,
     de_shaw_options,
     gs_technical,
-    jane_street_etf,
     jpm_fundamental,
     renaissance_pattern,
     two_sigma_backtest,
@@ -16,7 +15,6 @@ ALL_AGENTS = [
     ("bridgewater_macro",   bridgewater_macro.run),
     ("gs_technical",        gs_technical.run),
     ("citadel_quant",       citadel_quant.run),
-    ("jane_street_etf",     jane_street_etf.run),
     ("de_shaw_options",     de_shaw_options.run),
     ("renaissance_pattern", renaissance_pattern.run),
     ("two_sigma_backtest",  two_sigma_backtest.run),
@@ -26,6 +24,5 @@ ALL_AGENTS = [
 # the gatherer fetches for a run.
 ALL_DATA = list(dict.fromkeys(
     section for module in (jpm_fundamental, bridgewater_macro, gs_technical, citadel_quant,
-                           jane_street_etf, de_shaw_options, renaissance_pattern,
-                           two_sigma_backtest)
+                           de_shaw_options, renaissance_pattern, two_sigma_backtest)
     for section in module.DATA))

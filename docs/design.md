@@ -4,7 +4,7 @@ This document describes the system as it is built. The code is the source of tru
 
 ## Purpose
 
-EquityTrader produces one Buy, Hold or Sell verdict for a single ticker over a 3 to 6 month horizon. Eight specialist agents analyze the ticker independently, each from its own discipline. An orchestrator reads their structured verdicts and writes the final call with a conviction, a price target, a position size, a stop level and a catalyst calendar.
+EquityTrader produces one Buy, Hold or Sell verdict for a single ticker over a 3 to 6 month horizon. Seven specialist agents analyze the ticker independently, each from its own discipline. An orchestrator reads their structured verdicts and writes the final call with a conviction, a price target, a position size, a stop level and a catalyst calendar.
 
 The point of the design is to show a portfolio manager where independent views converge and where they split, with every number traceable to code or to a dated data source.
 
@@ -17,10 +17,10 @@ reset the per-run cache, fetch the quote        runner.py
   |
 the gatherer fetches every desk's data          gatherer.py
   |
-eight specialists, one model call each,         runner.py, agents/
+seven specialists, one model call each,         runner.py, agents/
 three at a time
   |
-eight reports, each cited number checked        runner.py, gatherer.py
+seven reports, each cited number checked        runner.py, gatherer.py
 against the data
   |
 weighted score, computed in code                scoring.py
@@ -38,7 +38,7 @@ web UI or terminal report                       app.py, run.py
 
 ### The gatherer
 
-Each desk module declares `DATA`, the list of functions whose results it reads. A function is one section: `company_snapshot`, `options_surface`, `rule_backtest`. `ALL_DATA` in `agents/__init__.py` is every section across the desks, each once, 34 in all.
+Each desk module declares `DATA`, the list of functions whose results it reads. A function is one section: `company_snapshot`, `options_surface`, `rule_backtest`. `ALL_DATA` in `agents/__init__.py` is every section across the desks, each once, 33 in all.
 
 `gather(ticker, ALL_DATA)` in `gatherer.py` calls each of them once, one at a time, before any desk starts, and returns each section's data or the error that stopped it. `brief(ticker, DATA, gathered)` then builds a desk's request: the task, and under a heading for each of its sections, the function's docstring and its data as compact JSON, or `UNAVAILABLE` and the error. Every section takes the ticker or nothing, and a test rejects any other argument, since such a section could not be gathered ahead of the desks.
 
@@ -68,14 +68,15 @@ Two principles govern what a desk is given:
 
 | Desk | Module | Weight | Its own data |
 |---|---|---:|---|
-| J.P. Morgan, Fundamental | `jpm_fundamental` | 25 | SEC statements with ratios, earnings release and guidance, consensus and revisions, analyst actions, insider trades and holders, text of recent 8-Ks |
-| Bridgewater Associates, All-Weather Macro | `bridgewater_macro` | 18 | Macro sensitivity of the stock, its record in past market drawdowns, cross-asset board, sector rotation |
-| Goldman Sachs, Technical | `gs_technical` | 12 | Technicals on three timeframes, key levels, volume analysis, relative strength, last 120 daily bars |
-| Citadel, Quantitative | `citadel_quant` | 12 | Factor scorecard ranked against industry peers, estimates and revisions, style board, risk statistics |
-| Jane Street, ETF & Basket Flow | `jane_street_etf` | 10 | ETF landscape, ETF weights and liquidity, relative strength, sector rotation and breadth, index event calendar |
-| D. E. Shaw, Options-Derived | `de_shaw_options` | 10 | Options surface, volatility premium, index volatility, near-the-money chain, index event calendar |
-| Renaissance Technologies, Pattern Recognition | `renaissance_pattern` | 8 | Seasonality, earnings event study, forward-return study, volatility and gaps |
-| Two Sigma, Backtest Sanity | `two_sigma_backtest` | 5 | Rule backtest |
+| J.P. Morgan, Fundamental | `jpm_fundamental` | 28 | SEC statements with ratios, earnings release and guidance, consensus and revisions, analyst actions, insider trades and holders, text of recent 8-Ks |
+| Bridgewater Associates, All-Weather Macro | `bridgewater_macro` | 20 | Macro sensitivity of the stock, its record in past market drawdowns, cross-asset board, sector rotation |
+| Goldman Sachs, Technical | `gs_technical` | 13 | Technicals on three timeframes, key levels, volume analysis, relative strength, ETF weights and liquidity, last 120 daily bars |
+| Citadel, Quantitative | `citadel_quant` | 13 | Factor scorecard ranked against industry peers, estimates and revisions, style board, risk statistics |
+| D. E. Shaw, Options-Derived | `de_shaw_options` | 11 | Options surface, volatility premium, index volatility, near-the-money chain, index event calendar |
+| Renaissance Technologies, Pattern Recognition | `renaissance_pattern` | 9 | Seasonality, earnings event study, forward-return study, volatility and gaps |
+| Two Sigma, Backtest Sanity | `two_sigma_backtest` | 6 | Rule backtest |
+
+A Jane Street desk (ETF and basket flow, weight 10) sat on the committee until 2026-11-22. Free data has no ETF creation or redemption flows, so the desk inferred flow from price and volume, and the chair flagged that in every run. What it read instead was relative strength, which the technical desk already reads: across the 14 saved runs that included both, the two made the same call in 12. Its 10 points were spread over the other desks in proportion and rounded. Its one section no other desk had, the stock's weight in the major ETFs, went to the technical desk. `RETIRED_DESKS` in `config.py` keeps its name for the runs saved while it sat.
 
 Every prompt is a persona and framework, a description of that desk's sections, and the shared rules in `agents/base.py`: a strict 3 to 6 month horizon, the date and price taken from the snapshot, evidence copied from the data, thesis and risks on every call, and nothing assumed beyond the data handed over. A test checks that every section a prompt names is one the desk is given.
 
@@ -83,7 +84,7 @@ Every prompt is a persona and framework, a description of that desk's sections, 
 
 | Role | Model | API |
 |---|---|---|
-| Eight specialists | `gpt-6-luna` | OpenAI Responses |
+| Seven specialists | `gpt-6-luna` | OpenAI Responses |
 | Orchestrator | `gpt-6.1-sol` | OpenAI Responses |
 
 Routing is one `ModelSpec(provider, model)` per agent in `config.py`. `build_agent` in `agents/base.py` uses the Responses API for OpenAI and the Chat Completions API for Groq, DeepSeek and Gemini through their OpenAI-compatible endpoints. Those three providers are supported by the factory and need their own key in `.env`; none is used by the default configuration.
@@ -131,7 +132,7 @@ The orchestrator model writes the memo, the agreements and splits, the red flags
 | `price_target_6mo` | conviction-weighted average of desk targets |
 | `price_target_desks` | how many desks gave a target |
 | `weights_used` | fixed weights after redistribution |
-| `agent_verdicts` | the eight reports as received and checked |
+| `agent_verdicts` | the seven reports as received and checked |
 | `catalyst_calendar` | the sourced catalysts, and nothing else |
 
 Sourced catalysts are the company's earnings and dividend dates, the scheduled CPI, jobs, GDP and PCE releases, and the options expirations and index rebalances that two desks read as `index_event_calendar`. Every future date a desk is given is in the list, so the chair never has to discard one a desk cites. The chair is given them and may cite them, but it has no field in which to write a date of its own.
@@ -224,7 +225,7 @@ The pattern and backtest desks work from the stock's full price history.
 
 ## Interfaces
 
-**Web (`app.py`, `equity_trader/ui.css`).** Gradio. The Analyze tab takes a ticker and streams a loading card that fills in desk by desk, then the report: verdict card, memo, agreements and splits, red flags, sizing, catalysts and eight specialist cards. The History tab lists past runs from SQLite and refreshes when opened.
+**Web (`app.py`, `equity_trader/ui.css`).** Gradio. The Analyze tab takes a ticker and streams a loading card that fills in desk by desk, then the report: verdict card, memo, agreements and splits, red flags, sizing, catalysts and seven specialist cards. The History tab lists past runs from SQLite and refreshes when opened.
 
 **Terminal (`run.py`).** `uv run python run.py TICKER` shows a progress line, then the same report with Rich.
 

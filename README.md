@@ -2,7 +2,7 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
-  <img src="docs/assets/banner-light.svg" width="100%" alt="EquityTrader. A multi-strategy investment committee: eight specialist desks, one ticker, one verdict.">
+  <img src="docs/assets/banner-light.svg" width="100%" alt="EquityTrader. A multi-strategy investment committee: seven specialist desks, one ticker, one verdict.">
 </picture>
 
 <br><br>
@@ -16,7 +16,7 @@
 
 <br><br>
 
-**Eight specialist agents, each modeled on the desk of a storied investment house, analyze one ticker independently.**<br>
+**Seven specialist agents, each modeled on the desk of a storied investment house, analyze one ticker independently.**<br>
 **A committee chair turns their verdicts into a single Buy, Hold or Sell for the next 3 to 6 months.**<br>
 The premise is diversity in thought process: desks that read different evidence make different mistakes, so the committee's call is harder to fool than any one view.
 
@@ -39,7 +39,7 @@ The premise is diversity in thought process: desks that read different evidence 
 <br>
 
 > [!IMPORTANT]
-> **Every ticker run makes paid LLM calls.** An `OPENAI_API_KEY` with funded credit is required. One run is nine model calls, eight `gpt-6-luna` specialists and one `gpt-6.1-sol` orchestrator, billed per token by OpenAI. Cost depends on how much data each desk is handed. Models are set per agent in `equity_trader/config.py`, which can also route any agent to Gemini, Groq or DeepSeek.
+> **Every ticker run makes paid LLM calls.** An `OPENAI_API_KEY` with funded credit is required. One run is eight model calls, seven `gpt-6-luna` specialists and one `gpt-6.1-sol` orchestrator, billed per token by OpenAI. Cost depends on how much data each desk is handed. Models are set per agent in `equity_trader/config.py`, which can also route any agent to Gemini, Groq or DeepSeek.
 
 <br>
 
@@ -47,10 +47,10 @@ The premise is diversity in thought process: desks that read different evidence 
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/committee-dark.svg">
-  <img src="docs/assets/committee-light.svg" width="100%" alt="The eight desks and their weights: J.P. Morgan (Fundamental) 25%, Bridgewater Associates (All-Weather Macro) 18%, Goldman Sachs (Technical) 12%, Citadel (Quantitative) 12%, Jane Street (ETF and Basket Flow) 10%, D. E. Shaw (Options-Derived) 10%, Renaissance Technologies (Pattern Recognition) 8%, Two Sigma (Backtest Sanity) 5%.">
+  <img src="docs/assets/committee-light.svg" width="100%" alt="The seven desks and their weights: J.P. Morgan (Fundamental) 28%, Bridgewater Associates (All-Weather Macro) 20%, Goldman Sachs (Technical) 13%, Citadel (Quantitative) 13%, D. E. Shaw (Options-Derived) 11%, Renaissance Technologies (Pattern Recognition) 9%, Two Sigma (Backtest Sanity) 6%.">
 </picture>
 
-Each desk has its own analysis framework, its own data and its own voice. All eight return the same structured verdict: a recommendation, a conviction from 1 to 10, thesis bullets, risks, and the data points cited. The three desks whose discipline prices the stock (fundamental, technical, options) also give a 6-month price target.
+Each desk has its own analysis framework, its own data and its own voice. All seven return the same structured verdict: a recommendation, a conviction from 1 to 10, thesis bullets, risks, and the data points cited. The three desks whose discipline prices the stock (fundamental, technical, options) also give a 6-month price target.
 
 <br>
 
@@ -64,9 +64,8 @@ All of it is computed in code and handed over with dates and sample sizes, so th
 |---|---|
 | J.P. Morgan | SEC statements with ratios, the earnings release and guidance, consensus and revisions, analyst actions, insider trades, recent 8-Ks |
 | Bridgewater Associates | How the stock moves with rates, credit, the dollar and oil, its record in past market stress, cross-asset and sector boards |
-| Goldman Sachs | Trend on three timeframes, support and resistance, volume, relative strength, the last 120 daily bars |
+| Goldman Sachs | Trend on three timeframes, support and resistance, volume, relative strength, the stock's weight in the major ETFs, the last 120 daily bars |
 | Citadel | Factor scorecard ranked against industry peers, estimate revisions, style performance, risk statistics |
-| Jane Street | ETF weights and fund size, sector rotation and breadth, relative strength, index event dates, liquidity |
 | D. E. Shaw | Implied volatility across expiries, skew, positioning, implied against realized, earnings pricing, index volatility |
 | Renaissance Technologies | Full-history seasonality, earnings event study, what followed past shocks and days like today, gaps, volatility regime |
 | Two Sigma | Eleven long and short rules at one, three and six month holds, with significance, stability and a cross-check on the market |
@@ -93,7 +92,7 @@ Below the memo, code prints what has already happened and what is scheduled. Eac
 
 Every desk's reasoning stays on the page. Nothing is averaged away.
 
-<img src="docs/screenshots/specialists.png" width="100%" alt="Eight specialist verdict cards, each with a recommendation, conviction, thesis bullets and risks.">
+<img src="docs/screenshots/specialists.png" width="100%" alt="Seven specialist verdict cards, each with a recommendation, conviction, thesis bullets and risks.">
 
 <br>
 
@@ -101,7 +100,7 @@ Every desk's reasoning stays on the page. Nothing is averaged away.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/architecture-dark.svg">
-  <img src="docs/assets/architecture-light.svg" width="100%" alt="A ticker goes to the gatherer, which fetches every desk's data before any desk starts. Eight specialist agents are each handed their share and answer in one model call, three at a time. The orchestrator combines a deterministic score, an LLM memo and live catalysts into one verdict, saved to SQLite and JSON.">
+  <img src="docs/assets/architecture-light.svg" width="100%" alt="A ticker goes to the gatherer, which fetches every desk's data before any desk starts. Seven specialist agents are each handed their share and answer in one model call, three at a time. The orchestrator combines a deterministic score, an LLM memo and live catalysts into one verdict, saved to SQLite and JSON.">
 </picture>
 
 - **Independent specialists.** Each desk is a standalone OpenAI Agents SDK agent that answers in its own report schema. No desk sees another's work. Desks share context, never conclusions.
@@ -127,7 +126,7 @@ Every desk answers the chair in a fixed JSON schema, and the model provider hold
  "as_of": "2026-11-17", "source": "technicals", "signal": "bearish", "in_data": true}
 ```
 
-A short thesis, the risks and the call follow the evidence. The chair receives all eight reports as one JSON document and compares them reading by reading.
+A short thesis, the risks and the call follow the evidence. The chair receives all seven reports as one JSON document and compares them reading by reading.
 
 | What is controlled | How |
 |---|---|
@@ -153,7 +152,7 @@ score = sum( sign(recommendation) * conviction * weight ) / 100
 
 `sign` is +1 for BUY, 0 for HOLD and -1 for SELL. Conviction runs 1 to 10 and weights sum to 100, so the score ranges from -10 to +10.
 
-The weights are fixed in code. The orchestrator cannot change them. It reads the score and all eight reports, then writes a 150 to 300 word memo and makes the final call. That call is a judgment and may depart from the score, but a call against the score's sign has to come with a written rationale.
+The weights are fixed in code. The orchestrator cannot change them. It reads the score and all seven reports, then writes a 150 to 300 word memo and makes the final call. That call is a judgment and may depart from the score, but a call against the score's sign has to come with a written rationale.
 
 The orchestrator's schema holds only its judgment. The score, the conviction-weighted price target, the run timestamp, the current price, the desks' reports, the sourced catalysts and the recent events are added in code afterwards, so the model never writes them and cannot alter them. A call against the score's sign with no rationale is flagged on the report.
 
@@ -241,7 +240,7 @@ uv run pytest -m slow         # integration: live yfinance and SEC EDGAR
 uv run pytest                 # everything
 ```
 
-The mocked tier covers every data function and study on constructed inputs, all eight agents and the data each is handed, the gatherer, the orchestrator, the runner, the scoring math, persistence, the cache and the schemas.
+The mocked tier covers every data function and study on constructed inputs, all seven agents and the data each is handed, the gatherer, the orchestrator, the runner, the scoring math, persistence, the cache and the schemas.
 
 <br>
 
@@ -286,7 +285,6 @@ equity-trader/
 │       ├── bridgewater_macro.py
 │       ├── gs_technical.py
 │       ├── citadel_quant.py
-│       ├── jane_street_etf.py
 │       ├── de_shaw_options.py
 │       ├── renaissance_pattern.py
 │       └── two_sigma_backtest.py

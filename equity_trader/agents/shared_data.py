@@ -39,7 +39,7 @@ def recent_events(ticker: str) -> dict:
 SHARED_DATA = [company_snapshot, macro_dashboard, sector_macro, recent_events]
 
 
-# Sections more than one desk reads.
+# Sections not tied to one desk's own module.
 
 def relative_strength(ticker: str) -> dict:
     """The stock against the S&P 500 and its sector ETF: excess returns over 1 to

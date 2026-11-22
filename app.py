@@ -150,8 +150,8 @@ def _welcome_html() -> str:
     return f"""
     <div class="welcome-card">
       <div class="welcome-eyebrow">A Multi-Strategy Investment Committee</div>
-      <h1 class="welcome-title">Eight specialists.<br>One ticker. One verdict.</h1>
-      <p class="welcome-body">EquityTrader convenes eight specialist analysts modeled
+      <h1 class="welcome-title">Seven specialists.<br>One ticker. One verdict.</h1>
+      <p class="welcome-body">EquityTrader convenes seven specialist analysts modeled
       after the desks of the world's most respected investment houses, then
       synthesizes their structured verdicts into a single Buy, Hold, or Sell
       recommendation over a 3-6 month horizon.</p>
@@ -180,7 +180,7 @@ def _loading_html(ticker: str, reported: dict[str, AgentVerdict] | None = None,
     elif reported:
         stage = f"{len(reported)} of {len(_AGENT_PERSONAS)} desks reported"
     elif gathered:
-        stage = "Eight specialists at work, three at a time"
+        stage = "Seven specialists at work, three at a time"
     else:
         stage = "The gatherer is collecting the data"
     return f"""

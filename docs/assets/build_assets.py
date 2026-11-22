@@ -136,18 +136,17 @@ def banner(f: dict, t: dict) -> str:
         f["display"].draw("EQ", cx, 128, 20, t["brand"], "middle", tracking=0.04),
         f["display"].draw("EquityTrader", cx, 262, 124, t["brand"], "middle", tracking=-0.02),
         line(cx - 36, 300, cx + 36, 300, t["gold"], 1.5),
-        f["italic"].draw("Eight specialist desks. One ticker. One verdict.",
+        f["italic"].draw("Seven specialist desks. One ticker. One verdict.",
                          cx, 350, 30, t["ink3"], "middle"),
         line(56, 404, W - 56, 404, t["border"]),
     ]
-    labels = ["FUNDAMENTAL", "MACRO", "TECHNICAL", "QUANT",
-              "ETF FLOW", "OPTIONS", "PATTERN", "BACKTEST"]
+    labels = ["FUNDAMENTAL", "MACRO", "TECHNICAL", "QUANT", "OPTIONS", "PATTERN", "BACKTEST"]
     step = (W - 112) / len(labels)
     for i, label in enumerate(labels):
         b.append(f["mono"].draw(label, 56 + step * (i + 0.5), 436, 10.5,
                                 t["ink4"], "middle", tracking=0.2))
     return svg(468, "EquityTrader: a multi-strategy investment committee. "
-                    "Eight specialist desks, one ticker, one verdict.", b, t)
+                    "Seven specialist desks, one ticker, one verdict.", b, t)
 
 
 def committee(f: dict, t: dict) -> str:
@@ -182,7 +181,7 @@ def committee(f: dict, t: dict) -> str:
 
 def architecture(f: dict, t: dict) -> str:
     row_y, pitch, row_h = 120, 48, 38
-    last_cy = row_y + pitch * 7 + row_h / 2
+    last_cy = row_y + pitch * (len(DESKS) - 1) + row_h / 2
     cy = (row_y + row_h / 2 + last_cy) / 2
     # Left to right: ticker, gatherer, the desks between two spines, chair, verdict.
     ticker_x, ticker_w = 56, 104
@@ -221,7 +220,8 @@ def architecture(f: dict, t: dict) -> str:
         line(spine_in, row_y + row_h / 2, spine_in, last_cy, t["gold"]),
         line(spine_out, row_y + row_h / 2, spine_out, last_cy, t["gold"]),
         line(spine_out, cy, chair_x, cy, t["gold"]),
-        f["mono"].draw("8 SPECIALISTS, ONE MODEL CALL EACH, 3 AT A TIME", desks_mid, 104, 9,
+        f["mono"].draw(f"{len(DESKS)} SPECIALISTS, ONE MODEL CALL EACH, 3 AT A TIME",
+                       desks_mid, 104, 9,
                        t["ink4"], "middle", tracking=0.14),
         f["mono"].draw("EACH DESK IS HANDED ITS DATA AND HAS NO TOOLS", desks_mid,
                        last_cy + 46, 9, t["ink4"], "middle", tracking=0.14),
@@ -265,8 +265,9 @@ def architecture(f: dict, t: dict) -> str:
         f["mono"].draw("SQLITE + JSON SNAPSHOT", verdict_x + verdict_w / 2, oc + 104, 9,
                        t["ink4"], "middle", tracking=0.14),
     ]
-    return svg(540, "Architecture: the gatherer fetches every desk's data before any desk "
-                    "starts; eight specialist agents are each handed their share and answer in "
+    return svg(round(last_cy + 65), "Architecture: the gatherer fetches every desk's data "
+                    "before any desk starts; seven specialist agents are each handed their "
+                    "share and answer in "
                     "one model call, three at a time; the "
                     "orchestrator combines a deterministic "
                     "weighted score with an LLM memo and live catalysts into one verdict, "

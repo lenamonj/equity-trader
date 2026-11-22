@@ -21,10 +21,8 @@ DESK_DATA = {
     "bridgewater_macro": {"macro_sensitivity", "stress_history", "cross_asset_board",
                           "sector_rotation"},
     "gs_technical": {"technicals", "key_levels", "volume_analysis", "relative_strength",
-                     "price_history"},
+                     "etf_exposure", "price_history"},
     "citadel_quant": {"factor_scorecard", "estimates", "style_board", "risk_stats"},
-    "jane_street_etf": {"etf_landscape", "etf_exposure", "relative_strength",
-                        "sector_rotation", "index_event_calendar"},
     "de_shaw_options": {"options_surface", "volatility_premium", "market_volatility",
                         "options_chain", "index_event_calendar"},
     "renaissance_pattern": {"seasonality", "earnings_event_study", "forward_return_study",
@@ -92,9 +90,9 @@ async def test_a_desk_sends_its_brief_and_returns_the_models_report(name):
     assert sent.startswith("Analyze NVDA") and all(f"## {s}" in sent for s in sections)
 
 
-def test_the_gatherer_fetches_34_sections_shared_context_first():
+def test_the_gatherer_fetches_33_sections_shared_context_first():
     names = [section.__name__ for section in ALL_DATA]
-    assert len(names) == len(set(names)) == 34
+    assert len(names) == len(set(names)) == 33
     assert names[:4] == ["company_snapshot", "macro_dashboard", "sector_macro",
                          "recent_events"]
 
