@@ -83,9 +83,13 @@ Each desk's call appears the moment it reports, so a run that takes a little ove
 
 ## The report
 
-The chair writes a portfolio manager memo, names where the desks agree and where they split, flags what could break the call, and suggests a position size. The catalyst calendar is fetched live from market data, so the dates are real.
+The chair writes a portfolio manager memo, names where the desks agree and where they split, flags what could break the call, and suggests a position size.
 
-<img src="docs/screenshots/memo.png" width="100%" alt="The investment memo with agreements, splits, red flags, position sizing, and the catalyst calendar.">
+<img src="docs/screenshots/memo.png" width="100%" alt="The investment memo with agreements, splits, red flags and position sizing.">
+
+Below the memo, code prints what has already happened and what is scheduled. Each recent 8-K and heavy-volume session is shown with that session's price reaction and the press headlines around it. The catalyst calendar is fetched live from market data, so the dates are real.
+
+<img src="docs/screenshots/events.png" width="100%" alt="Recent events with the opening gap, close, volume and move against the sector ETF for each, press headlines with their sources, and the catalyst calendar.">
 
 Every desk's reasoning stays on the page. Nothing is averaged away.
 
