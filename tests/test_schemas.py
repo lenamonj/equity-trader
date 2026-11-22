@@ -116,3 +116,15 @@ def test_orchestrator_verdict_position_sizing_literal():
             red_flags=[], position_sizing_suggestion="MAX OUT",
             stop_loss_level=None, catalyst_calendar=[], agent_verdicts=[],
         )
+
+
+@pytest.mark.parametrize("unit", ["usd_millions", "usd_billions"])
+def test_an_amount_stated_in_millions_or_billions_keeps_its_scale(unit):
+    # A release says "$8.5 billion". Copied as 8.5 in plain dollars it reads as $8.50.
+    report = Report.model_validate(_report(evidence=[_reading(value=8.5, unit=unit)]))
+    assert report.evidence[0].unit == unit
+
+
+def test_the_unit_description_tells_the_desk_about_scale_words():
+    description = " ".join(Evidence.model_fields["unit"].description.split())
+    assert "usd_billions" in description and "usd_millions" in description

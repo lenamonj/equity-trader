@@ -168,3 +168,13 @@ async def test_analyze_shows_an_error_card_when_every_desk_failed(monkeypatch):
     pages = [page async for page in app.analyze("tgt")]
     assert "could not convene on TGT" in pages[-1]
     assert "Every desk failed on TGT. First error: RuntimeError: boom" in pages[-1]
+
+
+@pytest.mark.parametrize("value, unit, shown", [
+    (8.5, "usd_billions", "$8.5B"),
+    (750.0, "usd_millions", "$750.0M"),
+    (-28.72, "usd_billions", "$-28.7B"),
+    (8.5, "usd", "$8.50"),
+])
+def test_a_reading_is_shown_at_the_scale_the_desk_gave(value, unit, shown):
+    assert app._fmt_reading(value, unit) == shown

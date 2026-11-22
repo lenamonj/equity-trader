@@ -74,3 +74,8 @@ def test_shared_rules_block_says_how_to_read_recent_events():
     assert "`recent_events`" in text
     assert "press claim" in text and "attribute" in text
     assert "`material`" in text
+
+
+def test_shared_rules_block_says_how_to_cite_an_amount_with_a_scale_word():
+    text = " ".join(shared_rules_block().split())
+    assert "`usd_billions`" in text and "`usd_millions`" in text

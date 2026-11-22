@@ -73,6 +73,9 @@ def _fmt_reading(value: float, unit: str) -> str:
             if abs(value) >= size:
                 return f"${value / size:,.1f}{suffix}"
         return f"${value:,.2f}"
+    # An amount the desk copied as the DATA states it: 8.5 for "$8.5 billion".
+    if unit in ("usd_millions", "usd_billions"):
+        return f"${value:,.1f}{'M' if unit == 'usd_millions' else 'B'}"
     if unit == "count":
         return f"{value:,.0f}"
     if unit == "fraction":

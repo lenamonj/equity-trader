@@ -21,7 +21,8 @@ PositionSize = Literal[
     "not sizeable", "starter (~1%)", "full (~3%)", "high conviction (~5%)"
 ]
 Signal = Literal["bullish", "bearish", "neutral"]
-Unit = Literal["percent", "fraction", "usd", "ratio", "count", "index", "other"]
+Unit = Literal["percent", "fraction", "usd", "usd_millions", "usd_billions", "ratio",
+               "count", "index", "other"]
 
 
 class Evidence(BaseModel):
@@ -35,7 +36,9 @@ class Evidence(BaseModel):
     unit: Unit = Field(description=(
         "The unit the DATA gives the number in. fraction for a share or rate written as a "
         "decimal, such as 0.29 for 29%; percent when it is written as a percentage, such "
-        "as 29.0; usd for a dollar amount or price; ratio for a multiple; count for a "
+        "as 29.0; usd for a dollar amount or price written in full; usd_millions or "
+        "usd_billions when the DATA states the amount with that word, such as 8.5 for "
+        "'$8.5 billion'; ratio for a multiple; count for a "
         "tally or a rank; index for an indicator or index level; else other."))
     as_of: date = Field(description="The date the reading is for, taken from the DATA.")
     source: str = Field(description="The DATA section the reading was copied from.")
