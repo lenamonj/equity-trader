@@ -116,7 +116,8 @@ def _8k_text(cik: str, accession_no: str, primary_document: str) -> str | None:
 
 @cached_for_run
 def get_recent_8ks(ticker: str, n: int = 5) -> list[dict]:
-    """The most recent 8-Ks: filing date, named items and the filing's text."""
+    """The most recent 8-Ks: filing date, the time the SEC accepted the filing
+    (UTC), named items and the filing's text."""
     cik = _ticker_to_cik(ticker)
     recent = _submissions(cik)["filings"]["recent"]
     items = recent.get("items", [""] * len(recent["form"]))
@@ -127,6 +128,7 @@ def get_recent_8ks(ticker: str, n: int = 5) -> list[dict]:
         codes = [c.strip() for c in items[i].split(",") if c.strip()]
         out.append({
             "filing_date": recent["filingDate"][i],
+            "accepted": recent["acceptanceDateTime"][i],
             "items": [f"{c} {_8K_ITEMS.get(c, 'Other')}" for c in codes],
             "text": _8k_text(cik, recent["accessionNumber"][i],
                              recent["primaryDocument"][i]),

@@ -33,6 +33,8 @@ def test_recent_8ks_carry_named_items_and_text():
                 "filingDate": ["2026-05-01", "2026-04-15", "2026-03-10"],
                 "primaryDocument": ["a.htm", "b.htm", "c.htm"],
                 "accessionNumber": ["1-1", "2-2", "3-3"],
+                "acceptanceDateTime": ["2026-05-01T12:05:00.000Z", "2026-04-15T20:30:00.000Z",
+                                       "2026-03-10T21:15:00.000Z"],
                 "items": ["5.02,9.01", "", "8.01"],
             }}
         })
@@ -48,6 +50,8 @@ def test_recent_8ks_carry_named_items_and_text():
     reset_run_cache()
     out = et.get_recent_8ks("AAPL", n=2)
     assert [f["filing_date"] for f in out] == ["2026-05-01", "2026-03-10"]
+    assert [f["accepted"] for f in out] == ["2026-05-01T12:05:00.000Z",
+                                            "2026-03-10T21:15:00.000Z"]
     assert out[0]["items"] == ["5.02 Departure or appointment of directors or officers",
                                "9.01 Financial statements and exhibits"]
     assert out[0]["text"] == ("Item 5.02. Departure of Directors or Certain Officers. The Board "
