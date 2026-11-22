@@ -23,7 +23,8 @@ def _report(rec="BUY", conv=6, evidence=()):
 
 
 # What the gatherer fetched, as far as these desks cite it.
-GATHERED = {"technicals": {"data": {"rsi_14": 15.97, "note": "ATR is 11.44"}, "error": None}}
+GATHERED = {"technicals": {"data": {"rsi_14": 15.97, "note": "ATR is 11.44"}, "error": None},
+            "recent_events": {"data": {"events": []}, "error": None}}
 
 
 def _v(name, rec="BUY", conv=6, err=None):
@@ -157,9 +158,12 @@ async def test_the_gatherer_runs_before_any_desk(monkeypatch):
     monkeypatch.setattr(run_mod, "ALL_AGENTS", [("jpm_fundamental", desk)])
     monkeypatch.setattr(run_mod, "get_quote", lambda t: {"last_price": 190.0})
     monkeypatch.setattr(run_mod, "gather", gather)
-    monkeypatch.setattr(run_mod.orchestrator, "run", AsyncMock(return_value="final"))
+    chair = AsyncMock(return_value="final")
+    monkeypatch.setattr(run_mod.orchestrator, "run", chair)
     monkeypatch.setattr(run_mod, "persist", lambda v, **kw: "run-id")
     reports = []
     await run_mod.analyze_ticker("NVDA", on_gathered=reports.append)
     assert order == ["gather", "desk"]
     assert reports == [fetched]
+    # The chair is handed the events the gatherer joined.
+    assert chair.await_args.kwargs["recent_events"] is fetched["recent_events"]

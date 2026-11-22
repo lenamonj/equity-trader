@@ -96,6 +96,43 @@ class CatalystEvent(BaseModel):
     notes: str | None = None
 
 
+class Headline(BaseModel):
+    """A press headline: a claim by its source, not a fact."""
+    title: str
+    source: str
+    published: date
+
+
+class Filing(BaseModel):
+    filing_date: date
+    items: list[str]
+    excerpt: str | None
+
+
+class RecentEvent(BaseModel):
+    """One session: the 8-Ks read on it and its price reaction, computed in code."""
+    rank: int
+    session: date | None  # None when no session has traded since the filing
+    filings: list[Filing]
+    heavy_volume: bool
+    unexplained: bool
+    opening_gap: float | None
+    close_to_close_return: float | None
+    volume_vs_50d_avg: float | None
+    sector_etf_return: float | None
+    return_vs_sector_etf: float | None
+    move: float | None
+    material: bool
+    headlines: list[Headline] | None  # None when the feed could not be read
+
+
+class RecentEvents(BaseModel):
+    as_of: date
+    sector_etf: str | None
+    events: list[RecentEvent]
+    notes: str
+
+
 class ChairMemo(BaseModel):
     """What the chair's model writes. The reading of the desks first, the call last."""
     key_agreements: list[str] = Field(description="Where desks agree. One sentence each.")
@@ -145,4 +182,6 @@ class OrchestratorVerdict(BaseModel):
     position_sizing_suggestion: PositionSize
     stop_loss_level: float | None = None
     catalyst_calendar: list[CatalystEvent]
+    # None when the section could not be gathered.
+    recent_events: RecentEvents | None = None
     agent_verdicts: list[AgentVerdict]

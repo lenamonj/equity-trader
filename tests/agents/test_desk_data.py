@@ -90,10 +90,11 @@ async def test_a_desk_sends_its_brief_and_returns_the_models_report(name):
     assert sent.startswith("Analyze NVDA") and all(f"## {s}" in sent for s in sections)
 
 
-def test_the_gatherer_fetches_33_sections_shared_context_first():
+def test_the_gatherer_fetches_34_sections_shared_context_first():
     names = [section.__name__ for section in ALL_DATA]
-    assert len(names) == len(set(names)) == 33
-    assert names[:3] == ["company_snapshot", "macro_dashboard", "sector_macro"]
+    assert len(names) == len(set(names)) == 34
+    assert names[:4] == ["company_snapshot", "macro_dashboard", "sector_macro",
+                         "recent_events"]
 
 
 def test_every_section_describes_itself_and_takes_the_ticker_or_nothing():

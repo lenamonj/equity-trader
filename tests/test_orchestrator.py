@@ -16,6 +16,22 @@ from equity_trader.schemas import (
     chair_memo_for,
 )
 
+# The gatherer's `recent_events` entry, as the runner hands it to the chair.
+EVENTS = {"error": None, "data": {
+    "as_of": "2026-11-20", "sector_etf": "XLK", "notes": "How to read this.",
+    "events": [{
+        "rank": 1, "session": "2026-11-12",
+        "filings": [{"filing_date": "2026-11-12",
+                     "items": ["5.02 Departure or appointment of directors or officers"],
+                     "excerpt": "Item 5.02. The Chief Executive Officer resigned."}],
+        "heavy_volume": True, "unexplained": False, "opening_gap": -0.1308,
+        "close_to_close_return": -0.0434, "volume_vs_50d_avg": 5.21,
+        "sector_etf_return": -0.0034, "return_vs_sector_etf": -0.04, "move": 0.1308,
+        "material": True,
+        "headlines": [{"title": "Acme chief executive resigns", "source": "Reuters",
+                       "published": "2026-11-12"}]}]}}
+NO_EVENTS = {"data": None, "error": "TickerNotFoundError: Ticker not found: NVDA"}
+
 Memo = chair_memo_for(list(AGENT_WEIGHTS))
 
 
@@ -38,7 +54,7 @@ def _memo(rec, rationale=None, drivers=("jpm_fundamental",)):
 async def _run_with(memo, verdicts, ticker="NVDA", price=190.0):
     with patch.object(orch, "Runner") as RunnerCls:
         RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": memo})())
-        return await orch.run(ticker, verdicts, current_price=price)
+        return await orch.run(ticker, verdicts, current_price=price, recent_events=EVENTS)
 
 
 @pytest.fixture(autouse=True)
@@ -73,11 +89,16 @@ async def test_the_chair_writes_a_memo_and_code_supplies_everything_else(monkeyp
     assert out.agent_verdicts == verdicts
     assert [(c.date, c.event) for c in out.catalyst_calendar] == [(real_date,
                                                                    "Earnings release")]
+    top = out.recent_events.events[0]
+    assert (out.recent_events.sector_etf, top.session, top.opening_gap, top.material) == (
+        "XLK", date(2026, 11, 12), -0.1308, True)
+    assert top.filings[0].items == ["5.02 Departure or appointment of directors or officers"]
+    assert top.headlines[0].source == "Reuters"
 
 
 def test_the_memo_has_no_field_that_code_owns():
     owned = {"ticker", "run_timestamp", "current_price", "weighted_score", "weights_used",
-             "price_target_6mo", "catalyst_calendar", "agent_verdicts"}
+             "price_target_6mo", "catalyst_calendar", "agent_verdicts", "recent_events"}
     assert not owned & set(ChairMemo.model_fields)
     assert owned <= set(OrchestratorVerdict.model_fields)
 
@@ -131,12 +152,13 @@ def test_the_chair_is_handed_one_json_document():
                   "expected_impact": "MEDIUM", "notes": "Source: FRED release calendar"}]
 
     doc = json.loads(orch._format_input("NVDA", verdicts, 153.81500244140625, -4.67,
-                                        date(2026, 11, 17), catalysts))
+                                        date(2026, 11, 17), catalysts, EVENTS))
 
     assert (doc["today"], doc["horizon_end"]) == ("2026-11-17", "2027-05-16")
     assert (doc["ticker"], doc["current_price"], doc["weighted_score"]) == ("NVDA", 153.82,
                                                                             -4.67)
     assert doc["catalysts"] == catalysts
+    assert doc["recent_events"] == EVENTS["data"]
     goldman, morgan = doc["desks"]
     assert (goldman["agent"], goldman["house"], goldman["discipline"]) == (
         "gs_technical", "Goldman Sachs", "Technical")
@@ -165,6 +187,27 @@ async def test_orchestrator_falls_back_on_llm_failure():
     verdicts = [_v("jpm_fundamental", "BUY", 8)]
     with patch.object(orch, "Runner") as RunnerCls:
         RunnerCls.run = AsyncMock(side_effect=RuntimeError("LLM down"))
-        out = await orch.run("NVDA", verdicts, current_price=190.0)
+        out = await orch.run("NVDA", verdicts, current_price=190.0, recent_events=EVENTS)
         assert isinstance(out, OrchestratorVerdict)
         assert "mechanical aggregation" in out.synthesis.lower()
+        # The events are on the report whether or not the chair wrote a memo.
+        assert out.recent_events.events[0].session == date(2026, 11, 12)
+
+
+@pytest.mark.asyncio
+async def test_events_that_could_not_be_gathered_are_reported_as_unavailable():
+    verdicts = [_v("jpm_fundamental", "BUY", 8)]
+    doc = json.loads(orch._format_input("NVDA", verdicts, 190.0, 5.0, date(2026, 11, 17), [],
+                                        NO_EVENTS))
+    assert doc["recent_events"] == {"unavailable": NO_EVENTS["error"]}
+    with patch.object(orch, "Runner") as RunnerCls:
+        RunnerCls.run = AsyncMock(return_value=type("R", (), {"final_output": _memo("BUY")})())
+        out = await orch.run("NVDA", verdicts, current_price=190.0, recent_events=NO_EVENTS)
+    assert out.recent_events is None
+
+
+def test_the_chair_must_address_the_largest_recent_event():
+    text = " ".join(orch._INSTRUCTIONS.split())
+    assert "`recent_events`" in text
+    assert "the only future dated events you may cite" in text
+    assert "ranked 1" in text and "`material`" in text

@@ -11,6 +11,7 @@ from equity_trader.schemas import (
     CatalystEvent,
     CheckedEvidence,
     OrchestratorVerdict,
+    RecentEvents,
 )
 
 
@@ -37,8 +38,35 @@ def test_a_desk_card_shows_its_evidence_and_how_much_was_found_in_the_data():
     assert "4 readings cited . 3 found in the data" in html
 
 
+def _event(rank, session, **changes):
+    return {"rank": rank, "session": session, "filings": [], "heavy_volume": True,
+            "unexplained": True, "opening_gap": -0.0169, "close_to_close_return": -0.1401,
+            "volume_vs_50d_avg": 3.51, "sector_etf_return": -0.0727,
+            "return_vs_sector_etf": -0.0674, "move": 0.1401, "material": True,
+            "headlines": [], **changes}
+
+
+def _events():
+    return RecentEvents(as_of="2026-11-20", sector_etf="XLK", notes="n", events=[
+        _event(1, "2026-11-20", headlines=None),
+        _event(2, "2026-11-12", unexplained=False, opening_gap=-0.1308,
+               close_to_close_return=-0.0434, volume_vs_50d_avg=5.21,
+               return_vs_sector_etf=-0.04, move=0.1308,
+               filings=[{"filing_date": "2026-11-12", "excerpt": "Item 5.02. Resigned.",
+                         "items": ["5.02 Departure or appointment of directors or officers"]}],
+               headlines=[{"title": "Acme <b>chief</b> resigns", "source": "Reuters",
+                           "published": "2026-11-12"}]),
+        _event(3, None, heavy_volume=False, unexplained=False, opening_gap=None,
+               close_to_close_return=None, volume_vs_50d_avg=None, sector_etf_return=None,
+               return_vs_sector_etf=None, move=None, material=False,
+               filings=[{"filing_date": "2026-11-20", "excerpt": None,
+                         "items": ["8.01 Other events"]}]),
+    ])
+
+
 def _verdict():
     return OrchestratorVerdict(
+        recent_events=_events(),
         ticker="NVDA", run_timestamp=datetime(2026, 11, 17, tzinfo=UTC),
         current_price=190.0, final_recommendation="BUY", conviction=7,
         price_target_6mo=210.0, weighted_score=3.5, weights_used=AGENT_WEIGHTS,
@@ -58,6 +86,7 @@ def test_report_renders_every_desk_and_escapes_model_text():
     for house, _ in app._AGENT_PERSONAS.values():
         assert house in html
     assert "Earnings release" in html
+    assert "Recent Events" in html and "5.02 Departure" in html
     assert "<b>thesis</b>" not in html
     assert "&lt;b&gt;thesis&lt;/b&gt;" in html
 
@@ -95,3 +124,27 @@ async def test_analyze_shows_an_error_card_for_an_unknown_ticker(monkeypatch):
     pages = [page async for page in app.analyze("zzzz")]
     assert "could not convene on ZZZZ" in pages[-1]
     assert "Ticker not found: ZZZZ" in pages[-1]
+
+
+def test_recent_events_show_each_reaction_as_code_computed_it():
+    html = app._events_html(_verdict())
+    resignation = html[html.index("5.02 Departure"):html.index("8.01 Other events")]
+    assert "8-K filed 2026-11-12" in resignation
+    for reading in ("-13.1%", "-4.3%", "5.2x", "vs XLK", "-4.0%"):
+        assert reading in resignation, reading
+    assert "MATERIAL" in resignation and "UNEXPLAINED" not in resignation
+    # A headline is shown with its source, and its text is escaped.
+    assert "Acme &lt;b&gt;chief&lt;/b&gt; resigns" in resignation and "Reuters" in resignation
+
+
+def test_recent_events_mark_what_is_unexplained_or_missing():
+    html = app._events_html(_verdict())
+    first = html[:html.index("5.02 Departure")]
+    assert "Heavy volume, no 8-K filed" in first and "UNEXPLAINED" in first
+    assert "-14.0%" in first and "Headlines unavailable" in first
+    assert "No session has traded since this filing" in html[html.index("8.01 Other events"):]
+
+
+def test_a_report_says_so_when_recent_events_could_not_be_gathered():
+    html = app._events_html(_verdict().model_copy(update={"recent_events": None}))
+    assert "Recent events could not be gathered for this run" in html

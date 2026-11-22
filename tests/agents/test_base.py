@@ -67,3 +67,10 @@ def test_shared_rules_block_says_the_data_is_all_there_is():
     text = shared_rules_block()
     assert "You have no tools and nothing else to fetch" in text
     assert "UNAVAILABLE" in text
+
+
+def test_shared_rules_block_says_how_to_read_recent_events():
+    text = shared_rules_block()
+    assert "`recent_events`" in text
+    assert "press claim" in text and "attribute" in text
+    assert "`material`" in text

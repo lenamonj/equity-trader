@@ -22,7 +22,7 @@ from equity_trader.config import AGENT_NAMES, AGENT_PERSONAS
 from equity_trader.exceptions import DataFetchError
 from equity_trader.persistence import list_runs
 from equity_trader.runner import analyze_ticker
-from equity_trader.schemas import AgentVerdict, OrchestratorVerdict
+from equity_trader.schemas import AgentVerdict, OrchestratorVerdict, RecentEvent
 
 log = logging.getLogger(__name__)
 
@@ -334,6 +334,80 @@ def _catalyst_html(v: OrchestratorVerdict) -> str:
     """
 
 
+def _fmt_move(x: float | None) -> str:
+    """A session return as a signed, colored percentage."""
+    if x is None:
+        return "-"
+    klass = "delta-up" if x >= 0 else "delta-down"
+    return f'<b class="{klass}">{x * 100:+.1f}%</b>'
+
+
+def _event_html(event: RecentEvent, sector_etf: str | None) -> str:
+    # A filing no session has traded on yet is dated by the filing.
+    when = event.session or event.filings[0].filing_date
+    if event.filings:
+        name = " | ".join("; ".join(f.items) or "8-K" for f in event.filings)
+        filed = ", ".join(f.filing_date.isoformat() for f in event.filings)
+        notes = f"8-K filed {filed}"
+    else:
+        name, notes = "Heavy volume, no 8-K filed", ""
+    if event.session is None:
+        reaction = "No session has traded since this filing"
+    else:
+        versus = (f"<span>vs {_e(sector_etf)} {_fmt_move(event.return_vs_sector_etf)}</span>"
+                  if sector_etf else "")
+        reaction = (f"<span>Gap {_fmt_move(event.opening_gap)}</span>"
+                    f"<span>Close {_fmt_move(event.close_to_close_return)}</span>"
+                    f"<span>Volume <b>{event.volume_vs_50d_avg:.1f}x</b> 50-day avg</span>"
+                    f"{versus}")
+    if event.headlines is None:
+        headlines = '<div class="event-notes">Headlines unavailable</div>'
+    else:
+        headlines = '<ul class="headline-list">' + "".join(
+            f"<li>{_e(h.title)}<span>{_e(h.source)} . {h.published.strftime('%b %d')}</span></li>"
+            for h in event.headlines) + "</ul>"
+    tags = "".join(
+        f'<div class="event-impact {klass}">{label}</div>'
+        for shown, label, klass in ((event.material, "MATERIAL", "impact-high"),
+                                    (event.unexplained, "UNEXPLAINED", "impact-medium"))
+        if shown)
+    return (
+        f'<div class="timeline-event recent-event">'
+        f'  <div class="event-date">'
+        f'    <div class="event-month">{when.strftime("%b").upper()}</div>'
+        f'    <div class="event-day">{when.day:02d}</div>'
+        f'  </div>'
+        f'  <div>'
+        f'    <div class="event-name">{_e(name)}</div>'
+        f'    <div class="event-notes">{_e(notes)}</div>'
+        f'    <div class="event-reaction">{reaction}</div>'
+        f'    {headlines}'
+        f'  </div>'
+        f'  <div class="event-tags">{tags}</div>'
+        f'</div>'
+    )
+
+
+def _events_html(v: OrchestratorVerdict) -> str:
+    """Recent filings and heavy-volume sessions with their price reaction. All
+    of it is computed in code, so it is on the page whatever the memo says."""
+    if v.recent_events is None:
+        body = '<div class="event-notes">Recent events could not be gathered for this run.</div>'
+    else:
+        rows = "".join(_event_html(event, v.recent_events.sector_etf)
+                       for event in v.recent_events.events)
+        body = (f'<div class="timeline">{rows}</div>'
+                '<div class="evidence-note">Reactions are computed in code from SEC filings '
+                "and price bars, largest move first. Headlines are press reports from Google "
+                "News and are not verified.</div>")
+    return f"""
+    <div class="timeline-card">
+      <div class="section-title">Recent Events and Price Reaction</div>
+      {body}
+    </div>
+    """
+
+
 def _agent_card_html(name: str, av: AgentVerdict | None) -> str:
     house, discipline = _AGENT_PERSONAS.get(name, (name, ""))
 
@@ -439,6 +513,7 @@ def _render_report(v: OrchestratorVerdict) -> str:
     return (
         _verdict_html(v)
         + _synthesis_html(v)
+        + _events_html(v)
         + _catalyst_html(v)
         + '<div class="section-title section-title-grid">Specialist Verdicts</div>'
         + f'<div class="agent-grid">{cards}</div>'

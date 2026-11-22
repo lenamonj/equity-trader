@@ -1,5 +1,11 @@
 """Context every desk is given, and sections that more than one desk reads."""
-from equity_trader.data import company_tools, fred_tools, market_tools, technical_tools
+from equity_trader.data import (
+    company_tools,
+    event_tools,
+    fred_tools,
+    market_tools,
+    technical_tools,
+)
 from equity_trader.data import yfinance_tools as yft
 
 
@@ -22,7 +28,15 @@ def sector_macro(ticker: str) -> dict:
     return fred_tools.get_sector_macro(yft.get_info(ticker).get("sector"))
 
 
-SHARED_DATA = [company_snapshot, macro_dashboard, sector_macro]
+def recent_events(ticker: str) -> dict:
+    """The five most recent 8-K filings and the heaviest-volume sessions of the
+    last 60, joined in code to each session's opening gap, close-to-close
+    return, volume against its 50-day average and return against the sector
+    ETF, with up to six press headlines per event. Ranked by size of move."""
+    return event_tools.get_recent_events(ticker)
+
+
+SHARED_DATA = [company_snapshot, macro_dashboard, sector_macro, recent_events]
 
 
 # Sections more than one desk reads.

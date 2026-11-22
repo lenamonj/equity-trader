@@ -103,6 +103,7 @@ async def analyze_ticker(
     verdicts = await asyncio.gather(
         *(_gated(name, fn) for name, fn in ALL_AGENTS)
     )
-    final = await orchestrator.run(ticker, verdicts, current_price)
+    final = await orchestrator.run(ticker, verdicts, current_price,
+                                   recent_events=gathered["recent_events"])
     persist(final)
     return final

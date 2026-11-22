@@ -676,6 +676,43 @@ footer, .show-api, .built-with, .footer { display: none !important; }
 .impact-medium { color: var(--ink-3); background: var(--paper-warm); }
 .impact-low    { color: var(--ink-4); background: var(--paper-warm); }
 
+/* Recent events: the same row, with the session's reaction and headlines */
+.recent-event { align-items: start; }
+.event-reaction {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.event-reaction b { font-weight: 600; color: var(--ink-1); }
+.event-reaction b.delta-up   { color: var(--buy); }
+.event-reaction b.delta-down { color: var(--sell); }
+.headline-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.headline-list li { padding: 2px 0; }
+.headline-list span {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--ink-4);
+  white-space: nowrap;
+}
+.event-tags {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
 /* ============================================================
    Agent grid
    ============================================================ */
