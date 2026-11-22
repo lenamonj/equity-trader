@@ -3,7 +3,13 @@ from unittest.mock import AsyncMock
 import pytest
 
 from equity_trader import runner as run_mod
-from equity_trader.schemas import AgentVerdict, DeskReport, Evidence, OrchestratorVerdict
+from equity_trader.schemas import (
+    AgentVerdict,
+    DeskReport,
+    Evidence,
+    OrchestratorVerdict,
+    desk_report_for,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -167,3 +173,22 @@ async def test_the_gatherer_runs_before_any_desk(monkeypatch):
     assert reports == [fetched]
     # The chair is handed the events the gatherer joined.
     assert chair.await_args.kwargs["recent_events"] is fetched["recent_events"]
+
+
+@pytest.mark.asyncio
+async def test_a_desks_target_reaches_its_verdict_and_a_desk_without_one_has_none():
+    with_target = desk_report_for(["technicals"], sets_target=True)(
+        evidence=[_reading("RSI, 14-day", 16.0).model_dump()], thesis=["x"],
+        risks=["y"], recommendation="SELL", conviction=8, price_target_6mo=148.8)
+
+    async def target_desk(t, gathered):
+        return with_target
+
+    async def other_desk(t, gathered):
+        return _report()
+
+    out = await run_mod._run_one("gs_technical", target_desk, "NVDA", GATHERED)
+    assert out.price_target_6mo == 148.8
+    out = await run_mod._run_one("citadel_quant", other_desk, "NVDA", GATHERED)
+    assert out.price_target_6mo is None
+    assert "price_target_6mo" not in DeskReport.model_fields

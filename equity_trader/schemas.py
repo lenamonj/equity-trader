@@ -49,7 +49,8 @@ class CheckedEvidence(Evidence):
 
 
 class DeskReport(BaseModel):
-    """What a desk's model writes. Evidence first, the call last."""
+    """What a desk's model writes. Evidence first, the call last. A desk whose
+    discipline prices the stock also writes a price target: see `desk_report_for`."""
     evidence: list[Evidence] = Field(min_length=1, max_length=12, description=(
         "The readings the call rests on, most important first. One number each."))
     thesis: list[str] = Field(min_length=1, max_length=6, description=(
@@ -59,20 +60,21 @@ class DeskReport(BaseModel):
         "unavailable. One or two sentences each."))
     recommendation: Recommendation
     conviction: int = Field(ge=1, le=10, description="10 is bet-the-book confidence.")
-    price_target_6mo: float | None = Field(description=(
-        "A price six months out, anchored to the current price, or null if the desk's "
-        "discipline does not produce one."))
 
 
-def desk_report_for(sections: list[str]) -> type[DeskReport]:
+def desk_report_for(sections: list[str], sets_target: bool = False) -> type[DeskReport]:
     """The report schema for one desk. `source` can only name a section that
-    desk was handed, so the model cannot cite anything else."""
+    desk was handed, so the model cannot cite anything else. Only a desk that
+    sets a target has the field for one, written last, after the call."""
     evidence = create_model(
         "Evidence", __base__=Evidence,
         source=(Literal[tuple(sections)], Evidence.model_fields["source"]))
-    return create_model(
-        "DeskReport", __base__=DeskReport,
-        evidence=(list[evidence], DeskReport.model_fields["evidence"]))
+    fields = {"evidence": (list[evidence], DeskReport.model_fields["evidence"])}
+    if sets_target:
+        fields["price_target_6mo"] = (float | None, Field(description=(
+            "The price six months out that this desk's work supports, on the side of its "
+            "call. Null only if the data it rests on was unavailable.")))
+    return create_model("DeskReport", __base__=DeskReport, **fields)
 
 
 class AgentVerdict(BaseModel):
@@ -177,6 +179,7 @@ class OrchestratorVerdict(BaseModel):
     final_recommendation: Recommendation
     conviction: int = Field(ge=1, le=10)
     price_target_6mo: float | None = None
+    price_target_desks: int = 0  # how many desks the target rests on
     weighted_score: float
     weights_used: dict[str, float]
     score_departure_rationale: str | None = None

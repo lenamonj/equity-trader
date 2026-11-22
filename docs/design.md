@@ -94,8 +94,8 @@ Defined in `schemas.py`. There are two kinds of type: what a model writes, and w
 
 | Written by a model | Built in code from it |
 |---|---|
-| `DeskReport`: `evidence` (1 to 12), `thesis` (1 to 6), `risks` (1 to 4), `recommendation`, `conviction` (1 to 10), `price_target_6mo` | `AgentVerdict`: the report plus `agent`, `ticker`, `in_data` on each reading, and `error_note` |
-| `ChairMemo`: `key_agreements`, `key_disagreements`, `red_flags`, `dominant_drivers`, `synthesis`, `final_recommendation`, `conviction`, `score_departure_rationale`, `position_sizing_suggestion`, `stop_loss_level` | `OrchestratorVerdict`: the memo plus `ticker`, `run_timestamp`, `current_price`, `weighted_score`, `weights_used`, `price_target_6mo`, `catalyst_calendar`, `agent_verdicts` |
+| `DeskReport`: `evidence` (1 to 12), `thesis` (1 to 6), `risks` (1 to 4), `recommendation`, `conviction` (1 to 10), and for three desks `price_target_6mo` | `AgentVerdict`: the report plus `agent`, `ticker`, `in_data` on each reading, and `error_note` |
+| `ChairMemo`: `key_agreements`, `key_disagreements`, `red_flags`, `dominant_drivers`, `synthesis`, `final_recommendation`, `conviction`, `score_departure_rationale`, `position_sizing_suggestion`, `stop_loss_level` | `OrchestratorVerdict`: the memo plus `ticker`, `run_timestamp`, `current_price`, `weighted_score`, `weights_used`, `price_target_6mo`, `price_target_desks`, `catalyst_calendar`, `recent_events`, `agent_verdicts` |
 
 An `Evidence` item is one reading: `metric`, `value` (a number), `unit` (percent, fraction, usd, ratio, count, index or other), `as_of` (a date), `source` and `signal` (bullish, bearish or neutral).
 
@@ -129,11 +129,20 @@ The orchestrator model writes the memo, the agreements and splits, the red flags
 | `run_timestamp` | UTC clock |
 | `weighted_score` | `scoring.compute_weighted_score` |
 | `price_target_6mo` | conviction-weighted average of desk targets |
+| `price_target_desks` | how many desks gave a target |
 | `weights_used` | fixed weights after redistribution |
 | `agent_verdicts` | the eight reports as received and checked |
 | `catalyst_calendar` | the sourced catalysts, and nothing else |
 
 Sourced catalysts are the company's earnings and dividend dates and the scheduled CPI, jobs, GDP and PCE releases. The chair is given them and may cite them, but it has no field in which to write a date of its own.
+
+### The price target
+
+Only a desk whose discipline prices the stock sets a target: J.P. Morgan from valuation, Goldman Sachs from chart levels, D. E. Shaw from the options-implied range. Their schemas have a `price_target_6mo` field and their prompts require it, on the side of the desk's own call. The other five schemas have no such field, so those desks cannot give one.
+
+The verdict's target is the conviction-weighted average of the targets given, and the report says how many desks it rests on. Because it is an average of desks and not the chair's judgment, it can point against the call. When it is above the price on a SELL or below it on a BUY, code adds a red flag saying so.
+
+Before 2026-11-22 every desk could give a target and none was asked to. Across 23 saved runs, 38 of 158 desk reports gave one, and in 2 runs the target pointed against the call.
 
 ## Data layer
 

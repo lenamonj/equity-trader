@@ -127,6 +127,15 @@ YOUR DATA:
 Cite specific numbers and the period they belong to - never paraphrase from
 memory.
 
+PRICE TARGET:
+`price_target_6mo` is REQUIRED from this desk. It is the price your
+valuation work supports six months out: the earnings or cash flow the DATA
+gives, at the multiple you judge fair, checked against the analyst targets
+in `analyst_view`. It must agree with your call: above the current price
+on a BUY, below it on a SELL, close to it on a HOLD. Say in one thesis
+bullet how you arrived at it. Give null only if `fundamentals` and
+`estimates` are both UNAVAILABLE.
+
 {shared_rules_block()}
 
 The framework above guides your reasoning. Answer in the report schema,
@@ -141,7 +150,8 @@ agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
     spec=AGENT_MODELS[AGENT_NAME],
-    output_type=desk_report_for([section.__name__ for section in DATA]),
+    output_type=desk_report_for([section.__name__ for section in DATA],
+                                sets_target=True),
 )
 
 

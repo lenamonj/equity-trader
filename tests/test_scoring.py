@@ -57,3 +57,15 @@ def test_conviction_weighted_target_excludes_missing_and_errored():
     verdicts = [v(8, 200.0), v(2, 100.0), v(5, None), v(9, 999.0, err="boom")]
     assert conviction_weighted_target(verdicts) == 180.0
     assert conviction_weighted_target([v(5, None)]) is None
+
+
+def test_target_desks_counts_the_desks_the_target_rests_on():
+    from equity_trader.schemas import AgentVerdict
+    from equity_trader.scoring import target_desks
+
+    def v(tgt, err=None):
+        return AgentVerdict(agent="a", ticker="X", recommendation="BUY", conviction=5,
+                            price_target_6mo=tgt, error_note=err)
+
+    assert target_desks([v(200.0), v(100.0), v(None), v(999.0, err="boom")]) == 2
+    assert target_desks([v(None)]) == 0

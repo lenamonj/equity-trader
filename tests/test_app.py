@@ -66,7 +66,7 @@ def _events():
 
 def _verdict():
     return OrchestratorVerdict(
-        recent_events=_events(),
+        recent_events=_events(), price_target_desks=3,
         ticker="NVDA", run_timestamp=datetime(2026, 11, 17, tzinfo=UTC),
         current_price=190.0, final_recommendation="BUY", conviction=7,
         price_target_6mo=210.0, weighted_score=3.5, weights_used=AGENT_WEIGHTS,
@@ -148,3 +148,10 @@ def test_recent_events_mark_what_is_unexplained_or_missing():
 def test_a_report_says_so_when_recent_events_could_not_be_gathered():
     html = app._events_html(_verdict().model_copy(update={"recent_events": None}))
     assert "Recent events could not be gathered for this run" in html
+
+
+def test_the_verdict_card_says_how_many_desks_the_target_rests_on():
+    assert "from 3 of 8 desks" in app._verdict_html(_verdict())
+    none = _verdict().model_copy(update={"price_target_6mo": None, "price_target_desks": 0})
+    html = app._verdict_html(none)
+    assert "No desk gave a target" in html and "of 8 desks" not in html

@@ -79,6 +79,15 @@ YOUR DATA:
 
 Cite the actual numbers, not vague "above the 50dma."
 
+PRICE TARGET:
+`price_target_6mo` is REQUIRED from this desk. Take it from `key_levels`:
+the resistance the setup points to on a BUY, the support it points to on a
+SELL, the middle of the range on a HOLD. When no level lies beyond the
+price in the direction of your call, project one from the ATR or the prior
+range, and say in a thesis bullet that you did. It must agree with your
+call: above the current price on a BUY, below it on a SELL. Give null only
+if `key_levels` is UNAVAILABLE.
+
 {shared_rules_block()}
 
 The framework above guides your reasoning. Answer in the report schema,
@@ -93,7 +102,8 @@ agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
     spec=AGENT_MODELS[AGENT_NAME],
-    output_type=desk_report_for([section.__name__ for section in DATA]),
+    output_type=desk_report_for([section.__name__ for section in DATA],
+                                sets_target=True),
 )
 
 

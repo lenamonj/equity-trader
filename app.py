@@ -89,6 +89,14 @@ def _fmt_delta(target, current) -> str:
     return f'<div class="metric-delta {klass}">{arrow} {pct:+.2f}% implied</div>'
 
 
+def _target_note(v: OrchestratorVerdict) -> str:
+    """How many desks the target rests on: it is an average of those that gave one."""
+    if v.price_target_6mo is None:
+        return '<div class="metric-note">No desk gave a target</div>'
+    return (f'<div class="metric-note">from {v.price_target_desks} of '
+            f"{len(v.agent_verdicts)} desks</div>")
+
+
 def _rec_pill(rec: str, size: str = "lg") -> str:
     klass_map = {"BUY": "rec-buy", "HOLD": "rec-hold", "SELL": "rec-sell"}
     klass = klass_map.get(rec, "rec-hold")
@@ -226,6 +234,7 @@ def _verdict_html(v: OrchestratorVerdict) -> str:
           <div class="metric-label">6-Month Target</div>
           <div class="metric-value">{_fmt_usd(v.price_target_6mo)}</div>
           {_fmt_delta(v.price_target_6mo, v.current_price)}
+          {_target_note(v)}
         </div>
         <div class="metric metric-score">
           <div class="metric-label">Committee Score</div>

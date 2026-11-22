@@ -85,6 +85,7 @@ async def test_the_chair_writes_a_memo_and_code_supplies_everything_else(monkeyp
     assert out.weighted_score == pytest.approx(orch.compute_weighted_score(verdicts,
                                                                            AGENT_WEIGHTS))
     assert out.price_target_6mo == 215.0
+    assert out.price_target_desks == 1  # Goldman Sachs gave none
     assert out.weights_used == AGENT_WEIGHTS
     assert out.agent_verdicts == verdicts
     assert [(c.date, c.event) for c in out.catalyst_calendar] == [(real_date,
@@ -98,7 +99,8 @@ async def test_the_chair_writes_a_memo_and_code_supplies_everything_else(monkeyp
 
 def test_the_memo_has_no_field_that_code_owns():
     owned = {"ticker", "run_timestamp", "current_price", "weighted_score", "weights_used",
-             "price_target_6mo", "catalyst_calendar", "agent_verdicts", "recent_events"}
+             "price_target_6mo", "price_target_desks", "catalyst_calendar", "agent_verdicts",
+             "recent_events"}
     assert not owned & set(ChairMemo.model_fields)
     assert owned <= set(OrchestratorVerdict.model_fields)
 
@@ -211,3 +213,31 @@ def test_the_chair_must_address_the_largest_recent_event():
     assert "`recent_events`" in text
     assert "the only future dated events you may cite" in text
     assert "ranked 1" in text and "`material`" in text
+
+
+@pytest.mark.asyncio
+async def test_a_target_that_points_against_the_call_is_flagged():
+    # One BUY desk gave the only target, and the committee sells.
+    verdicts = [_v("jpm_fundamental", "BUY", 3, 190.0), _v("gs_technical", "SELL", 9, None),
+                _v("bridgewater_macro", "SELL", 8, None)]
+    out = await _run_with(_memo("SELL"), verdicts, price=155.0)
+    assert out.red_flags == ["existing flag", (
+        "The 6-month target of $190.00 is above the current price of $155.00, against the "
+        "SELL call. It rests on 1 of 3 desks.")]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("call, target", [("SELL", 140.0), ("BUY", 190.0), ("HOLD", 190.0),
+                                          ("HOLD", 140.0), ("SELL", None)])
+async def test_a_target_that_agrees_with_the_call_or_is_absent_is_not_flagged(call, target):
+    verdicts = [_v("jpm_fundamental", call, 8, target)]
+    out = await _run_with(_memo(call), verdicts, price=155.0)
+    assert out.red_flags == ["existing flag"]
+
+
+@pytest.mark.asyncio
+async def test_a_buy_with_a_target_below_the_price_is_flagged():
+    verdicts = [_v("jpm_fundamental", "BUY", 8, 140.0), _v("gs_technical", "BUY", 7, 150.0)]
+    out = await _run_with(_memo("BUY"), verdicts, price=155.0)
+    assert out.red_flags[-1].startswith("The 6-month target of $144.67 is below the current")
+    assert out.red_flags[-1].endswith("against the BUY call. It rests on 2 of 2 desks.")

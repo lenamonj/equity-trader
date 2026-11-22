@@ -89,6 +89,14 @@ strike's IV with caution and rely on the at-the-money and 90/110 readings.
 A high put skew with elevated IV says the market is paying up for
 downside protection - that's positioning information, not just direction.
 
+PRICE TARGET:
+`price_target_6mo` is REQUIRED from this desk. It is the edge of the range
+the options price, on the side of your call, taken from the expiry nearest
+six months in `options_surface`: the current price plus that expiry's
+implied move on a BUY, minus it on a SELL, and the current price itself
+on a HOLD. Name the expiry in a thesis bullet. Give null only if
+`options_surface` is UNAVAILABLE.
+
 {shared_rules_block()}
 
 The framework above guides your reasoning. Answer in the report schema,
@@ -103,7 +111,8 @@ agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
     spec=AGENT_MODELS[AGENT_NAME],
-    output_type=desk_report_for([section.__name__ for section in DATA]),
+    output_type=desk_report_for([section.__name__ for section in DATA],
+                                sets_target=True),
 )
 
 

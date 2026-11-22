@@ -20,6 +20,7 @@ from equity_trader.scoring import (
     compute_weighted_score,
     conviction_weighted_target,
     redistribute_weights,
+    target_desks,
 )
 
 _HORIZON_DAYS = 180
@@ -42,7 +43,8 @@ Your request is one JSON document:
 - `desks`, one entry per desk: its `agent` code, `house`, `discipline` and
   `weight`, then either its `report` or, if the desk failed, `failed`.
   A report holds `evidence`, `thesis`, `risks`, `recommendation`,
-  `conviction` and `price_target_6mo`. Each evidence item is one reading:
+  `conviction` and `price_target_6mo`, which is null for a desk whose
+  discipline does not price the stock. Each evidence item is one reading:
   `metric`, `value`, `unit`, `as_of`, the data `source` it came from, the
   `signal` the desk reads in it, and `in_data`, which is false when code could
   not find that number in the desk's data.
@@ -154,6 +156,7 @@ def _mechanical_fallback(ticker: str, verdicts: list[AgentVerdict],
         final_recommendation=rec,
         conviction=min(10, max(1, int(abs(weighted_score) + 1))),
         price_target_6mo=conviction_weighted_target(verdicts),
+        price_target_desks=target_desks(verdicts),
         weighted_score=weighted_score,
         weights_used=_effective_weights(verdicts),
         score_departure_rationale=None,
@@ -194,6 +197,15 @@ def _verdict(memo: ChairMemo, ticker: str, verdicts: list[AgentVerdict],
     if (_SIGN[memo.final_recommendation] * weighted < 0
             and not memo.score_departure_rationale):
         red_flags.append(_UNEXPLAINED_DEPARTURE)
+    # The target is an average of the desks that gave one, so it can point
+    # against the committee's call. When it does, the report says so.
+    target = conviction_weighted_target(verdicts)
+    if target and _SIGN[memo.final_recommendation] * (target - current_price) < 0:
+        side = "above" if target > current_price else "below"
+        red_flags.append(
+            f"The 6-month target of ${target:,.2f} is {side} the current price of "
+            f"${current_price:,.2f}, against the {memo.final_recommendation} call. "
+            f"It rests on {target_desks(verdicts)} of {len(verdicts)} desks.")
     return OrchestratorVerdict(
         **memo.model_dump(exclude={"red_flags"}),
         red_flags=red_flags,
@@ -201,7 +213,8 @@ def _verdict(memo: ChairMemo, ticker: str, verdicts: list[AgentVerdict],
         run_timestamp=datetime.now(UTC),
         current_price=current_price,
         weighted_score=weighted,
-        price_target_6mo=conviction_weighted_target(verdicts),
+        price_target_6mo=target,
+        price_target_desks=target_desks(verdicts),
         weights_used=_effective_weights(verdicts),
         catalyst_calendar=[CatalystEvent(**c) for c in real_catalysts],
         recent_events=_events(recent_events),

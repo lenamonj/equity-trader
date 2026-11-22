@@ -427,6 +427,13 @@ footer, .show-api, .built-with, .footer { display: none !important; }
   letter-spacing: 0.04em;
   margin-top: 2px;
 }
+.metric-note {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-4);
+  margin-top: 4px;
+}
 .delta-up   { color: var(--buy); }
 .delta-down { color: var(--sell); }
 

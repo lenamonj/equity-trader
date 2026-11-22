@@ -79,7 +79,9 @@ def render(v: OrchestratorVerdict) -> None:
     rec = f"[{_REC_STYLE[v.final_recommendation]}]{v.final_recommendation}[/]"
     summary = Table.grid(padding=(0, 3))
     summary.add_row("Current price", _usd(v.current_price))
-    summary.add_row("6-month target", _usd(v.price_target_6mo))
+    rests_on = (f" (from {v.price_target_desks} of {len(v.agent_verdicts)} desks)"
+                if v.price_target_6mo else "")
+    summary.add_row("6-month target", _usd(v.price_target_6mo) + rests_on)
     summary.add_row("Committee score", f"{v.weighted_score:+.2f}  (range -10 to +10)")
     summary.add_row("Position sizing", v.position_sizing_suggestion)
     if v.stop_loss_level:

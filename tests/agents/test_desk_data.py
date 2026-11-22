@@ -32,6 +32,8 @@ DESK_DATA = {
     "two_sigma_backtest": {"rule_backtest"},
 }
 DESKS = [name for name, _ in ALL_AGENTS]
+# The desks whose discipline prices the stock: valuation, chart levels, the options range.
+TARGET_DESKS = {"jpm_fundamental", "gs_technical", "de_shaw_options"}
 
 
 def _module(name):
@@ -102,3 +104,16 @@ def test_every_section_describes_itself_and_takes_the_ticker_or_nothing():
     for section in ALL_DATA:
         assert len(" ".join(section.__doc__.split())) > 40, section.__name__
         assert list(inspect.signature(section).parameters) in ([], ["ticker"]), section.__name__
+
+
+@pytest.mark.parametrize("name", DESKS)
+def test_only_a_desk_whose_discipline_prices_the_stock_can_set_a_target(name):
+    module = _module(name)
+    fields = list(module.agent.output_type.json_schema()["properties"])
+    prompt = " ".join(module.INSTRUCTIONS.split())
+    if name in TARGET_DESKS:
+        assert fields[-1] == "price_target_6mo"  # written last, after the call
+        assert "`price_target_6mo` is REQUIRED from this desk" in prompt
+    else:
+        assert "price_target_6mo" not in fields
+        assert "REQUIRED from this desk" not in prompt

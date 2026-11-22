@@ -46,3 +46,8 @@ def test_the_terminal_report_says_so_when_events_could_not_be_gathered(monkeypat
     text = _printed(monkeypatch, _verdict().model_copy(update={"recent_events": None}))
     assert "Recent events could not be gathered for this run" in text
 
+
+def test_the_terminal_report_says_how_many_desks_the_target_rests_on(monkeypatch):
+    text = _printed(monkeypatch, _verdict())
+    target = next(line for line in text.splitlines() if "6-month target" in line)
+    assert "$210.00 (from 3 of 8 desks)" in target

@@ -29,7 +29,10 @@ Report = desk_report_for(["technicals", "key_levels"])
 
 def test_a_desk_report_is_written_evidence_first_and_the_call_last():
     assert list(DeskReport.model_fields) == [
-        "evidence", "thesis", "risks", "recommendation", "conviction", "price_target_6mo"]
+        "evidence", "thesis", "risks", "recommendation", "conviction"]
+    # A desk that sets a target writes it last, after the call.
+    assert list(desk_report_for(["technicals"], sets_target=True).model_fields)[-2:] == [
+        "conviction", "price_target_6mo"]
     assert list(Evidence.model_fields) == [
         "metric", "value", "unit", "as_of", "source", "signal"]
     report = Report.model_validate(_report())
