@@ -1,7 +1,11 @@
 """The terminal report."""
+import sys
+
+import pytest
 from rich.console import Console
 
 import run
+from equity_trader.exceptions import TickerNotFoundError
 from equity_trader.schemas import Headline
 from tests.test_app import _events, _verdict
 
@@ -51,3 +55,50 @@ def test_the_terminal_report_says_how_many_desks_the_target_rests_on(monkeypatch
     text = _printed(monkeypatch, _verdict())
     target = next(line for line in text.splitlines() if "6-month target" in line)
     assert "$210.00 (from 3 of 7 desks)" in target
+
+
+def _batch(monkeypatch, tickers, unknown=()):
+    """Run the command on several tickers with the committee faked."""
+    seen = []
+
+    async def committee(ticker, on_verdict=None, on_gathered=None):
+        seen.append(ticker)
+        if ticker in unknown:
+            raise TickerNotFoundError(ticker)
+        return _verdict().model_copy(update={"ticker": ticker})
+
+    console = Console(record=True, width=200)
+    monkeypatch.setattr(run, "console", console)
+    monkeypatch.setattr(run, "analyze_ticker", committee)
+    monkeypatch.setattr(sys, "argv", ["run.py", *tickers])
+    return seen, console
+
+
+def test_several_tickers_run_in_sequence_and_end_with_a_summary(monkeypatch):
+    seen, console = _batch(monkeypatch, ["mu", "ORCL"])
+    run.main()
+    assert seen == ["MU", "ORCL"]
+    summary = console.export_text().split("Committee calls")[1]
+    for ticker in ("MU", "ORCL"):
+        row = next(line for line in summary.splitlines() if ticker in line)
+        for cell in ("BUY", "7/10", "+3.50", "$190.00", "$210.00"):
+            assert cell in row, cell
+
+
+def test_a_ticker_that_cannot_be_fetched_does_not_stop_the_batch(monkeypatch):
+    seen, console = _batch(monkeypatch, ["MU", "ZZZZ", "ORCL"], unknown={"ZZZZ"})
+    with pytest.raises(SystemExit) as stopped:
+        run.main()
+    assert stopped.value.code == 1
+    assert seen == ["MU", "ZZZZ", "ORCL"]
+    text = console.export_text()
+    assert "Ticker not found: ZZZZ" in text
+    summary = text.split("Committee calls")[1]
+    assert "MU" in summary and "ORCL" in summary
+    assert "Not run: ZZZZ" in summary
+
+
+def test_one_ticker_prints_no_summary(monkeypatch):
+    seen, console = _batch(monkeypatch, ["MU"])
+    run.main()
+    assert seen == ["MU"] and "Committee calls" not in console.export_text()

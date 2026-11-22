@@ -180,6 +180,7 @@ uv sync
 
 ```bash
 uv run python run.py NVDA   # terminal report
+uv run python run.py MU ORCL TGT   # several tickers in sequence, then a summary
 uv run python grade.py      # grade every saved verdict against what the stock did next
 uv run python app.py        # web UI at http://127.0.0.1:7860
 uv run gradio app.py        # web UI with hot reload

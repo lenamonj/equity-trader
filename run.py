@@ -119,11 +119,8 @@ def render(v: OrchestratorVerdict) -> None:
                            for c in v.catalyst_calendar])
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Convene the committee on one ticker.")
-    parser.add_argument("ticker")
-    ticker = parser.parse_args().ticker.upper()
-
+def convene(ticker: str) -> OrchestratorVerdict:
+    """Run the committee on one ticker, showing its progress."""
     reported = 0
     with console.status(f"Convening the committee on {ticker}: gathering data") as status:
         def on_gathered(_) -> None:
@@ -136,13 +133,47 @@ def main() -> None:
                      else f"{reported} of {len(AGENT_NAMES)} desks reported")
             status.update(f"Convening the committee on {ticker}: {stage}")
 
+        return asyncio.run(analyze_ticker(ticker, on_verdict=on_verdict,
+                                          on_gathered=on_gathered))
+
+
+def summarize(verdicts: list[OrchestratorVerdict], not_run: list[str]) -> None:
+    """One line per ticker, after a run on several."""
+    table = Table(title="Committee calls", title_justify="left")
+    for column in ("Ticker", "Call", "Conviction", "Score", "Current", "6-month target"):
+        table.add_column(column)
+    for v in verdicts:
+        table.add_row(v.ticker,
+                      f"[{_REC_STYLE[v.final_recommendation]}]{v.final_recommendation}[/]",
+                      f"{v.conviction}/10", f"{v.weighted_score:+.2f}", _usd(v.current_price),
+                      _usd(v.price_target_6mo))
+    console.print()
+    console.print(table)
+    if not_run:
+        console.print(f"[bold red]Not run: {', '.join(not_run)}[/]")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Convene the committee on one ticker, or on several in sequence.")
+    parser.add_argument("tickers", nargs="+", metavar="TICKER")
+    tickers = [ticker.upper() for ticker in parser.parse_args().tickers]
+
+    verdicts, not_run = [], []
+    for ticker in tickers:
         try:
-            v = asyncio.run(analyze_ticker(ticker, on_verdict=on_verdict,
-                                           on_gathered=on_gathered))
+            verdict = convene(ticker)
         except DataFetchError as exc:
+            # One ticker that cannot be fetched does not cost the rest of the list.
             console.print(f"[bold red]{exc}[/]")
-            sys.exit(1)
-    render(v)
+            not_run.append(ticker)
+            continue
+        render(verdict)
+        verdicts.append(verdict)
+    if len(tickers) > 1:
+        summarize(verdicts, not_run)
+    if not_run:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

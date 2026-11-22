@@ -180,7 +180,7 @@ Statements come from the SEC, not from a market data vendor. `get_financial_stat
 - An 8-K is read on the session that could first trade on it. The SEC's acceptance time decides: a filing accepted at or after 4pm New York time belongs to the next session.
 - The three heaviest-volume sessions of the last 60 are added. One with no 8-K is marked `unexplained`.
 - Each entry carries the opening gap, the close-to-close return, volume against its 50-day average, the sector ETF's return and the difference. `move` is the larger of the gap and the return in absolute terms. Entries are ranked by it, and `material` marks a move of 10% or more.
-- Each entry carries up to six Google News headlines from the day before the filing to the day after the session, kept only if the title names the company and the source is not the company itself. A headline is a claim: the prompts tell the desks and the chair to attribute it and never to act on its text. If the feed cannot be read the headlines are null and the rest of the entry stands.
+- Each entry carries up to six Google News headlines from the day before the filing to the day after the session, kept only if the title names the company and the source is not the company itself. The search is for the company's name and the word "stock", so a name that is also a common word (Target) returns stories about the company. A headline is a claim: the prompts tell the desks and the chair to attribute it and never to act on its text. If the feed cannot be read the headlines are null and the rest of the entry stands.
 
 Every desk reads the section, and it goes into the chair's request. The chair must address the top-ranked entry and every material one in the memo. The catalyst calendar remains the only source of future dates. The report prints the section from code, so a material event is on the page whatever the memo says.
 
@@ -209,7 +209,7 @@ The pattern and backtest desks work from the stock's full price history.
 - Creation and redemption flows are not available; fund volume against its average is the proxy.
 - FRED serves a rolling three years of the ICE BofA spread series. If `ICE_HISTORY_FILE` names a local parquet of older observations (columns `date`, `series_id`, `value`), `fred_tools` joins them in front of what FRED returns and spreads are ranked against ten years like every other reading. Without the file those percentiles cover three years, and `pctile_years` says so. The file is local data and is never committed.
 - The published macro release schedule usually runs to the end of the calendar year, so it can stop short of the horizon.
-- Headlines are matched on the company's name with its legal suffix removed. A company the press calls by another name (Meta Platforms, Alphabet) keeps fewer of them.
+- Headlines are matched on the company's name with its legal suffix removed. A company the press calls by a shorter or different name (Micron Technology, Occidental Petroleum, Meta Platforms, Alphabet) keeps fewer of them, and more of those come from stock-commentary sites.
 - A heavy-volume session is one of the three largest of the last 60, whatever its size, so a quiet stock still lists three.
 
 ## Failure handling
@@ -227,7 +227,7 @@ The pattern and backtest desks work from the stock's full price history.
 
 **Web (`app.py`, `equity_trader/ui.css`).** Gradio. The Analyze tab takes a ticker and streams a loading card that fills in desk by desk, then the report: verdict card, memo, agreements and splits, red flags, sizing, catalysts and seven specialist cards. The History tab lists past runs from SQLite and refreshes when opened.
 
-**Terminal (`run.py`).** `uv run python run.py TICKER` shows a progress line, then the same report with Rich.
+**Terminal (`run.py`).** `uv run python run.py TICKER` shows a progress line, then the same report with Rich. Given several tickers it runs them in sequence, one committee at a time, and ends with a line per ticker. A ticker that cannot be fetched is reported and skipped, and the command exits with status 1.
 
 **Grading (`grade.py`, `equity_trader/grading.py`).** `uv run python grade.py` scores every saved run against the stock's forward return. See "Grading" below.
 
