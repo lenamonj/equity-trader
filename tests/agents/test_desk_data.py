@@ -30,8 +30,9 @@ DESK_DATA = {
     "two_sigma_backtest": {"rule_backtest"},
 }
 DESKS = [name for name, _ in ALL_AGENTS]
-# The desks whose discipline prices the stock: valuation, chart levels, the options range.
-TARGET_DESKS = {"jpm_fundamental", "gs_technical", "de_shaw_options"}
+# The desks whose discipline prices the stock: valuation and chart levels. The
+# options desk reports a range, which is not a direction, so it sets no target.
+TARGET_DESKS = {"jpm_fundamental", "gs_technical"}
 
 
 def _module(name):
@@ -119,5 +120,7 @@ def test_only_a_desk_whose_discipline_prices_the_stock_can_set_a_target(name):
 
 def test_the_options_desk_prices_inside_the_horizon_and_dates_readings_when_observed():
     prompt = " ".join(_module("de_shaw_options").INSTRUCTIONS.split())
-    assert "the latest expiry in `options_surface` that falls within six months of today" in prompt
+    assert "the latest expiry inside six months of today" in prompt
     assert "never an expiry date" in prompt
+    # The implied range is evidence, not a target.
+    assert "PRICE TARGET" not in prompt

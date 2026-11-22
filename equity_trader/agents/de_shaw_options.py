@@ -89,14 +89,11 @@ strike's IV with caution and rely on the at-the-money and 90/110 readings.
 A high put skew with elevated IV says the market is paying up for
 downside protection - that's positioning information, not just direction.
 
-PRICE TARGET:
-`price_target_6mo` is REQUIRED from this desk. It is the edge of the range
-the options price, on the side of your call, taken from the latest expiry
-in `options_surface` that falls within six months of today's date: the
-current price plus that expiry's implied move on a BUY, minus it on a
-SELL, and the current price itself on a HOLD. An expiry past six months is
-outside the horizon: do not use it for the target. Name the expiry in a
-thesis bullet. Give null only if `options_surface` is UNAVAILABLE.
+State the range the options price from the latest expiry inside six months
+of today's date, and name that expiry. An expiry past six months is
+outside the horizon. The range is symmetric: it measures how far the
+market expects the stock to move, not which way, so it is evidence for
+your thesis and never a price target.
 
 Every `as_of` in your evidence is the date the options were observed, the
 section's own `as_of`, never an expiry date. Put the expiry in `metric`.
@@ -115,8 +112,7 @@ agent = build_agent(
     name=AGENT_NAME,
     instructions=INSTRUCTIONS,
     spec=AGENT_MODELS[AGENT_NAME],
-    output_type=desk_report_for([section.__name__ for section in DATA],
-                                sets_target=True),
+    output_type=desk_report_for([section.__name__ for section in DATA]),
 )
 
 

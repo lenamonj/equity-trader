@@ -140,9 +140,11 @@ Sourced catalysts are the company's earnings and dividend dates, the scheduled C
 
 ### The price target
 
-Only a desk whose discipline prices the stock sets a target: J.P. Morgan from valuation, Goldman Sachs from chart levels, D. E. Shaw from the options-implied range. Their schemas have a `price_target_6mo` field and their prompts require it, on the side of the desk's own call. The other five schemas have no such field, so those desks cannot give one.
+Only a desk whose discipline prices the stock sets a target: J.P. Morgan from valuation and Goldman Sachs from chart levels. Their schemas have a `price_target_6mo` field and their prompts require it, on the side of the desk's own call. The other five schemas have no such field, so those desks cannot give one.
 
 The verdict's target is the conviction-weighted average of the targets given, and the report says how many desks it rests on. Because it is an average of desks and not the chair's judgment, it can point against the call. When it is above the price on a SELL or below it on a BUY, code adds a red flag saying so.
+
+D. E. Shaw set a target too for the first fourteen runs after the change: the edge of the options-implied range on the side of its call. A range measures how far, not which way, and it was the most extreme of the three every time (CAT at $369 against $580 and $455). The chair discounted it in every one of those runs, so it was removed. The desk still reports the range as evidence.
 
 Before 2026-11-22 every desk could give a target and none was asked to. Across 23 saved runs, 38 of 158 desk reports gave one, and in 2 runs the target pointed against the call.
 
