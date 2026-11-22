@@ -112,3 +112,11 @@ def test_unusual_volume_counts_a_strike_with_no_open_interest_reported(options, 
     monkeypatch.setattr(ot, "_chain", lambda t, expiry: (calls, puts))
     assert ot.options_surface("ACME")["unusual_volume"][0] == {
         "expiry": _in(10), "type": "put", "strike": 80.0, "volume": 6000, "open_interest": 0}
+
+
+def test_the_six_month_expiry_is_the_last_one_inside_the_horizon():
+    # The expiry nearest 180 days was often past the horizon: 207 days for Oracle.
+    listed = [_in(12), _in(33), _in(54), _in(89), _in(117), _in(145), _in(207), _in(390)]
+    picked = ot.pick_expiries(listed, TODAY)
+    assert _in(145) in picked and _in(207) not in picked
+    assert picked == [_in(12), _in(33), _in(54), _in(89), _in(145), _in(390)]

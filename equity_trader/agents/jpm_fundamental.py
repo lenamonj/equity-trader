@@ -27,7 +27,7 @@ def get_fundamentals(ticker: str) -> dict:
         statements = edg.get_financial_statements(ticker)
     except DataFetchError as exc:
         log.warning("SEC statements unavailable for %s, using yfinance: %s", ticker, exc)
-        return {"source": "yfinance (no US-GAAP statements on SEC EDGAR)",
+        return {"source": f"yfinance, because the SEC statements could not be used: {exc}",
                 **yft.get_fundamentals(ticker)}
     return {**statements, "valuation": yft.get_valuation(ticker)}
 

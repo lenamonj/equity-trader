@@ -121,12 +121,21 @@ def _usd(*facts):
     return {"units": {"USD": list(facts)}}
 
 
-def _statements(us_gaap: dict) -> dict:
+def _reports(*covering: str) -> httpx.Response:
+    """The company's filing list: one quarterly report for each period end given."""
+    return httpx.Response(200, json={"filings": {"recent": {
+        "form": ["8-K", *["10-Q"] * len(covering)],
+        "reportDate": ["2026-11-01", *covering]}}})
+
+
+def _statements(us_gaap: dict, reported: str = "2026-09-30") -> dict:
     reset_run_cache()
     respx.get("https://www.sec.gov/files/company_tickers.json").mock(
         return_value=httpx.Response(200, json=_TICKERS_JSON))
     respx.get("https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json").mock(
         return_value=httpx.Response(200, json={"facts": {"us-gaap": us_gaap}}))
+    respx.get("https://data.sec.gov/submissions/CIK0000320193.json").mock(
+        return_value=_reports(reported))
     return et.get_financial_statements("AAPL")
 
 
@@ -134,51 +143,129 @@ _REVENUE_NOW = _usd(_fact(2000, "2025-12-31", "10-K", "2026-02-01", "2025-01-01"
                     _fact(600, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01"))
 
 
+# Consolidated profit, which includes the share of minority owners.
+_PROFIT = _usd(_fact(480, "2025-12-31", "10-K", "2026-02-01", "2025-01-01"),
+               _fact(130, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01"))
+_CURRENT = {
+    "NetIncomeLoss": _usd(_fact(450, "2025-12-31", "10-K", "2026-02-01", "2025-01-01"),
+                          _fact(120, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01")),
+    "Revenues": _REVENUE_NOW}
+_YEAR = ("2025-12-31", "10-K", "2026-02-01", "2025-01-01")
+
+
 @respx.mock
-def test_net_income_follows_the_tag_a_company_moved_to():
-    # Caterpillar last filed NetIncomeLoss in 2011 and reports profit under other tags.
+def test_net_income_follows_a_company_from_one_tag_to_the_next():
+    # Freeport filed income available to common until early 2026, then NetIncomeLoss.
+    out = _statements({
+        "NetIncomeLossAvailableToCommonStockholdersBasic": _usd(
+            _fact(300, *_YEAR),
+            _fact(80, "2026-03-31", "10-Q", "2026-05-01", "2026-01-01")),
+        "NetIncomeLoss": _usd(
+            _fact(90, "2026-06-30", "10-Q", "2026-08-01", "2026-04-01"),
+            _fact(95, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01")),
+        "ProfitLoss": _PROFIT,
+        "Revenues": _REVENUE_NOW})
+    assert out["xbrl_tags"]["net_income"] == (
+        "NetIncomeLoss+NetIncomeLossAvailableToCommonStockholdersBasic")
+    assert out["annual"][0]["net_income"] == 300
+    assert [q["net_income"] for q in out["quarterly"][:3]] == [95, 90, 80]
+    assert "after preferred dividends" in out["notes"]
+
+
+@respx.mock
+def test_net_income_as_filed_wins_where_both_tags_cover_a_period():
+    out = _statements({
+        **_CURRENT,
+        "NetIncomeLossAvailableToCommonStockholdersBasic": _usd(
+            _fact(440, *_YEAR),
+            _fact(118, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01")),
+        "ProfitLoss": _PROFIT})
+    assert out["xbrl_tags"]["net_income"] == "NetIncomeLoss"
+    assert out["annual"][0]["net_income"] == 450
+    assert "preferred" not in out["notes"] and "noncontrolling" not in out["notes"]
+
+
+@respx.mock
+def test_consolidated_profit_is_used_only_when_nothing_attributable_is_current():
     out = _statements({
         "NetIncomeLoss": _usd(
             _fact(700, "2010-12-31", "10-K", "2011-02-01", "2010-01-01"),
             _fact(60, "2011-09-30", "10-Q", "2011-11-01", "2011-07-01")),
-        "ProfitLoss": _usd(
-            _fact(480, "2025-12-31", "10-K", "2026-02-01", "2025-01-01"),
-            _fact(130, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01")),
-        "NetIncomeLossAvailableToCommonStockholdersBasic": _usd(
-            _fact(470, "2025-12-31", "10-K", "2026-02-01", "2025-01-01"),
-            _fact(128, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01")),
+        "ProfitLoss": _PROFIT,
         "Revenues": _REVENUE_NOW})
     assert out["xbrl_tags"]["net_income"] == "ProfitLoss"
-    assert (out["annual"][0]["period_end"], out["annual"][0]["net_income"]) == (
-        "2025-12-31", 480)
-    assert (out["quarterly"][0]["period_end"], out["quarterly"][0]["net_income"]) == (
-        "2026-09-30", 130)
-    # The desk is told what the figure is.
+    assert (out["annual"][0]["net_income"], out["quarterly"][0]["net_income"]) == (480, 130)
     assert "before the share of noncontrolling interests" in out["notes"]
 
 
 @respx.mock
-def test_a_tag_with_recent_quarters_but_no_full_year_is_passed_over():
-    # Freeport began filing NetIncomeLoss in 2026: quarters, and no annual figure yet.
-    out = _statements({
-        "NetIncomeLoss": _usd(_fact(50, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01")),
-        "ProfitLoss": _usd(
-            _fact(480, "2025-12-31", "10-K", "2026-02-01", "2025-01-01"),
-            _fact(130, "2026-09-30", "10-Q", "2026-11-01", "2026-07-01")),
-        "Revenues": _REVENUE_NOW})
-    assert out["xbrl_tags"]["net_income"] == "ProfitLoss"
-    assert out["annual"][0]["period_end"] == "2025-12-31"
+def test_facts_that_stop_short_of_the_latest_report_are_refused():
+    # NextEra had filed its June and September reports, and the facts stopped at March.
+    stale = {
+        "NetIncomeLoss": _usd(_fact(450, *_YEAR),
+                              _fact(110, "2026-03-31", "10-Q", "2026-05-01", "2026-01-01")),
+        "Revenues": _usd(_fact(2000, *_YEAR),
+                         _fact(500, "2026-03-31", "10-Q", "2026-05-01", "2026-01-01"))}
+    with pytest.raises(DataFetchError,
+                       match="end 2026-03-31, but its latest report covers 2026-09-30"):
+        _statements(stale, reported="2026-09-30")
+    # A report for the same quarter, dated a few days off, is the same quarter.
+    assert _statements(stale, reported="2026-04-02")["quarterly"][0]["period_end"] == "2026-03-31"
+
+
+@pytest.mark.parametrize("line, tag", [
+    ("research_and_development", "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost"),
+    ("capex", "PaymentsToAcquireOtherPropertyPlantAndEquipment"),
+    ("interest_expense", "InterestAndDebtExpense"),
+    ("dividends_paid", "PaymentsOfOrdinaryDividends"),
+    ("stock_based_compensation", "AllocatedShareBasedCompensationExpense"),
+    ("discontinued_operations", "IncomeLossFromDiscontinuedOperationsNetOfTax"),
+])
+@respx.mock
+def test_a_line_is_read_from_the_tag_the_company_files(line, tag):
+    # Lilly, Occidental and Caterpillar file these lines under other tags than Apple does.
+    out = _statements({**_CURRENT, tag: _usd(_fact(77, *_YEAR))})
+    assert out["annual"][0][line] == 77 and out["xbrl_tags"][line] == tag
+
+
+@pytest.mark.parametrize("tag", ["LongTermDebtAndCapitalLeaseObligations",
+                                 "LongTermNotesAndLoans", "LongTermNotesPayable"])
+@respx.mock
+def test_long_term_debt_is_read_from_the_tag_the_company_files(tag):
+    # Oracle, Target and Home Depot do not file LongTermDebt in their quarterly reports.
+    out = _statements({**_CURRENT,
+                       tag: _usd(_fact(900, "2025-12-31", "10-K", "2026-02-01")),
+                       "StockholdersEquity": _usd(
+                           _fact(3000, "2025-12-31", "10-K", "2026-02-01"))})
+    assert out["annual"][0]["long_term_debt"] == 900
+    assert out["annual"][0]["ratios"]["debt_to_equity"] == 0.3
 
 
 @respx.mock
-def test_net_income_as_filed_is_preferred_when_it_is_current():
-    out = _statements({
-        "NetIncomeLoss": _usd(_fact(450, "2025-12-31", "10-K", "2026-02-01", "2025-01-01")),
-        "ProfitLoss": _usd(_fact(480, "2025-12-31", "10-K", "2026-02-01", "2025-01-01")),
-        "Revenues": _REVENUE_NOW})
-    assert out["xbrl_tags"]["net_income"] == "NetIncomeLoss"
-    assert out["annual"][0]["net_income"] == 450
-    assert "noncontrolling" not in out["notes"]
+def test_gross_profit_is_revenue_less_cost_when_it_is_not_filed():
+    out = _statements({**_CURRENT, "CostOfRevenue": _usd(_fact(1200, *_YEAR))})
+    year = out["annual"][0]
+    assert (year["cost_of_revenue"], year["gross_profit"]) == (1200, 800)
+    assert year["ratios"]["gross_margin"] == 0.4
+    assert "derived" in out["xbrl_tags"]["gross_profit"]
+
+
+@respx.mock
+def test_a_gross_profit_tag_the_company_stopped_filing_gives_way_to_the_derived_figure():
+    # Target, Caterpillar and Netflix filed GrossProfit years ago and file only cost now.
+    out = _statements({**_CURRENT, "CostOfRevenue": _usd(_fact(1200, *_YEAR)),
+                       "GrossProfit": _usd(
+                           _fact(600, "2017-12-31", "10-K", "2018-02-01", "2017-01-01"))})
+    assert out["annual"][0]["gross_profit"] == 800
+    assert "derived" in out["xbrl_tags"]["gross_profit"]
+
+
+@respx.mock
+def test_gross_profit_as_filed_is_not_recomputed():
+    out = _statements({**_CURRENT, "CostOfRevenue": _usd(_fact(1200, *_YEAR)),
+                       "GrossProfit": _usd(_fact(850, *_YEAR))})
+    assert out["annual"][0]["gross_profit"] == 850
+    assert out["xbrl_tags"]["gross_profit"] == "GrossProfit"
 
 
 @respx.mock
@@ -197,6 +284,8 @@ def test_financial_statements_as_filed():
         return_value=httpx.Response(200, json=_TICKERS_JSON))
     respx.get("https://data.sec.gov/api/xbrl/companyfacts/CIK0000320193.json").mock(
         return_value=httpx.Response(200, json=_FACTS))
+    respx.get("https://data.sec.gov/submissions/CIK0000320193.json").mock(
+        return_value=_reports("2025-12-31"))
     out = et.get_financial_statements("AAPL")
 
     assert out["xbrl_tags"]["revenue"] == "Revenues"

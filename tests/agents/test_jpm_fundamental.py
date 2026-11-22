@@ -18,5 +18,7 @@ def test_fundamentals_fall_back_to_yfinance_and_say_so(monkeypatch):
     monkeypatch.setattr(mod.edg, "get_financial_statements", no_filings)
     monkeypatch.setattr(mod.yft, "get_fundamentals", lambda t: {"income_stmt": {}})
     out = mod.get_fundamentals("TSM")
-    assert out["source"].startswith("yfinance")
+    # The desk is told why it did not get the SEC's statements.
+    assert out["source"] == ("yfinance, because the SEC statements could not be used: "
+                             "No US-GAAP annual statements on EDGAR for TSM")
     assert "income_stmt" in out

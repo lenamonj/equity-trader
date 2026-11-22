@@ -168,10 +168,13 @@ Statements come from the SEC, not from a market data vendor. `get_financial_stat
 
 - Each period carries its fiscal label (for example `Q2 FY2027`), how many periods ago it is, its period end, form and first filing date. Values reflect any later restatement.
 - Margins, growth rates, coverage and leverage are computed per period, with a summary of three and five year revenue growth and trailing-twelve-month totals.
-- Companies file different XBRL tags for the same line, and some move from one to another. The candidate tag with the most recent full-year figure is used, and the output names it. Net income is read from `NetIncomeLoss`, then `ProfitLoss`, then income available to common stockholders, and the notes say which meaning applies. Before 2026-11-22 only `NetIncomeLoss` was read: Caterpillar last filed it in 2011 and Occidental in early 2024, so their desks were handed statements that old.
-- Statements whose latest fiscal year ended more than 500 days ago are refused, so old statements are never handed over as current. The desk falls back to yfinance and is told so.
+- Companies file different XBRL tags for the same line, and some move from one to another. Each line has a list of candidate tags, and the one with the most recent full-year figure is used. The output names it. The lists were first written against three technology companies; on 2026-11-22 they were extended from what eleven companies across the sectors actually file (debt, capital spending, research, interest, dividends, stock compensation, cost of revenue).
+- Net income is the exception to one tag per line. `NetIncomeLoss` and income available to common stockholders differ only by preferred dividends, and companies move between them (Caterpillar in 2011, Occidental in 2024, Freeport in 2026), so each period is read from the first of the two that reports it. Consolidated profit, which includes minority owners' share, is used only when nothing attributable is current. The notes handed to the desk say which meaning applies.
+- Gross profit is derived as revenue less cost of revenue where it is not filed, or was last filed for an earlier year than cost. Discontinued operations are shown as their own line, so a gain on a sale is not read as earnings.
+- Statements are refused, and the desk falls back to yfinance and is told why, in two cases. The latest fiscal year in the facts ended more than 500 days ago. Or the facts stop short of the company's latest annual or quarterly report by more than 45 days: the facts feed for NextEra and Prologis ended at March 2026 while both had filed their September reports.
 - Filings give cash flow items and fourth quarters only as year-to-date figures. A single quarter is the difference between consecutive year-to-date figures. Per-share figures are never derived.
-- A company with no US-GAAP annual statements on EDGAR (IFRS filers, funds) falls back to a compact set of yfinance statements. The `source` field says which was used.
+- A company whose SEC statements cannot be used (an IFRS filer, a fund, or one of the two cases above) falls back to yfinance statements: four fiscal years and five quarters, with margins, growth and leverage computed. The `source` field says so and gives the reason.
+- `tests/data/test_statements_live.py` (run with `pytest -m slow`) checks the statements of fourteen large companies across the sectors against Yahoo's: trailing revenue, the latest quarter's net income, and that nothing is stale. It also fails if a US-GAAP filer falls back for want of a tag.
 
 ### Events and guidance
 
@@ -197,7 +200,7 @@ The pattern and backtest desks work from the stock's full price history.
 
 ### Options
 
-`options_surface` reads up to six expiries from one week to one year: at-the-money implied volatility, the implied move, skew between the 90% put and the 110% call, put/call ratios, the largest open-interest strikes and unusual volume. Quotes are delayed. There are no Greeks and no history of implied volatility, and the D. E. Shaw prompt says so.
+`options_surface` reads up to six expiries from one week to one year, the six-month one being the last listed inside the horizon and not the nearest to it: at-the-money implied volatility, the implied move, skew between the 90% put and the 110% call, put/call ratios, the largest open-interest strikes and unusual volume. Quotes are delayed. There are no Greeks and no history of implied volatility, and the D. E. Shaw prompt says so.
 
 ### Rules the data layer holds to
 
@@ -211,6 +214,8 @@ The pattern and backtest desks work from the stock's full price history.
 - ETF holdings cover each fund's ten largest positions.
 - Creation and redemption flows are not available; fund volume against its average is the proxy.
 - FRED serves a rolling three years of the ICE BofA spread series. If `ICE_HISTORY_FILE` names a local parquet of older observations (columns `date`, `series_id`, `value`), `fred_tools` joins them in front of what FRED returns and spreads are ranked against ten years like every other reading. Without the file those percentiles cover three years, and `pctile_years` says so. The file is local data and is never committed.
+- A line a company files only under its own extension tag stays null: Freeport's capital spending from mid-2026, Caterpillar's quarterly debt, Oracle's cost of revenue. Null means not reported under a tag this tool reads, never zero.
+- Yahoo's quarterly statement table is not a reliable check on a quarter: it restates banks' revenue to its own definition and differences annual figures against quarters that were later restated. Its trailing totals agree with the filings.
 - The published macro release schedule usually runs to the end of the calendar year, so it can stop short of the horizon.
 - Headlines are matched on the company's name with its legal suffix removed. A company the press calls by a shorter or different name (Micron Technology, Occidental Petroleum, Meta Platforms, Alphabet) keeps fewer of them, and more of those come from stock-commentary sites.
 - A heavy-volume session is one of the three largest of the last 60, whatever its size, so a quiet stock still lists three.

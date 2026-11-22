@@ -237,7 +237,8 @@ Free does not mean unrestricted. yfinance reads Yahoo Finance, which yfinance it
 
 ```bash
 uv run pytest -m "not slow"   # unit tests: mocked LLM, mocked data
-uv run pytest -m slow         # integration: live yfinance and SEC EDGAR
+uv run pytest -m slow         # integration: live yfinance and SEC EDGAR, including a
+                              # check of 14 companies' statements against Yahoo's
 uv run pytest                 # everything
 ```
 

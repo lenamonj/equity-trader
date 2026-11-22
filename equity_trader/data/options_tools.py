@@ -11,7 +11,8 @@ from equity_trader.data.technical_tools import YEAR, history
 from equity_trader.data.util import iso, num
 
 _ANNUAL = YEAR ** 0.5
-_TARGET_DAYS = (7, 30, 60, 90, 180, 365)
+_HORIZON_DAYS = 180
+_TARGET_DAYS = (7, 30, 60, 90, _HORIZON_DAYS, 365)
 _MIN_OPTION_DAYS = 90  # the horizon starts at three months
 _NOTE = ("Quotes are delayed and implied volatility on thinly traded strikes can be stale. "
          "implied_move is the at-the-money straddle price over spot: the move priced in by "
@@ -32,15 +33,24 @@ def horizon_expiry(expiries: list[str], today: date) -> str:
 
 
 def pick_expiries(expiries: list[str], today: date) -> list[str]:
-    """The listed expiry nearest each target maturity, at least a week out."""
+    """The listed expiry nearest each target maturity, at least a week out.
+
+    The six-month pick is the last expiry inside the horizon, not the nearest
+    to it: the nearest was often a month past the horizon's end.
+    """
     usable = [e for e in expiries if _days_to(e, today) >= 7]
+    inside = [e for e in usable if _days_to(e, today) <= _HORIZON_DAYS]
     picked: list[str] = []
     for target in _TARGET_DAYS:
-        if usable:
+        if not usable:
+            break
+        if target == _HORIZON_DAYS and inside:
+            best = inside[-1]
+        else:
             best = min(usable, key=lambda e, target=target: abs(_days_to(e, today) - target))
-            if best not in picked:
-                picked.append(best)
-    return picked
+        if best not in picked:
+            picked.append(best)
+    return sorted(picked)
 
 
 @cached_for_run

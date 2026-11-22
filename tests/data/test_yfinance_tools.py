@@ -118,3 +118,20 @@ def test_fallback_statements_are_compact_and_dated():
         {"period_end": "2025-12-31", "revenue": 100.0, "net_income": 20.0, "capex": 7.0},
         {"period_end": "2024-12-31", "revenue": 80.0, "net_income": 10.0, "capex": 5.0}]
     assert yft._statement_periods([None], limit=4) == []
+
+
+def test_fallback_statements_carry_margins_growth_and_leverage():
+    # A desk handed Yahoo's statements gets the same ratios as one handed the SEC's.
+    quarters = [{"period_end": f"2026-0{9 - 3 * i}-30", "revenue": revenue, "gross_profit": 40.0,
+                 "operating_income": 20.0, "net_income": 10.0, "free_cash_flow": 5.0,
+                 "total_debt": 30.0, "stockholders_equity": 60.0}
+                for i, revenue in enumerate([110.0, 105.0, 100.0])]
+    quarters += [{"period_end": "2025-12-31", "revenue": 98.0},
+                 {"period_end": "2025-09-30", "revenue": 100.0}]
+    out = yft._add_ratios(quarters, lag=4)
+    assert out[0]["ratios"] == {
+        "gross_margin": 0.3636, "operating_margin": 0.1818, "net_margin": 0.0909,
+        "free_cash_flow_margin": 0.0455, "revenue_growth_yoy": 0.1, "debt_to_equity": 0.5}
+    # No quarter a year earlier, and lines the period lacks, give null, never a guess.
+    assert out[1]["ratios"]["revenue_growth_yoy"] is None
+    assert out[3]["ratios"]["gross_margin"] is None

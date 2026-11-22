@@ -132,15 +132,40 @@ def _statement_periods(frames: list, limit: int) -> list[dict]:
     return out
 
 
+def _ratio(a, b) -> float | None:
+    return num(a / b) if a is not None and b else None
+
+
+def _add_ratios(periods: list[dict], lag: int) -> list[dict]:
+    """Margins, growth on the period `lag` rows earlier, and leverage for each
+    period, so a desk handed these statements does not have to compute them."""
+    for i, row in enumerate(periods):
+        revenue = row.get("revenue")
+        earlier = periods[i + lag].get("revenue") if i + lag < len(periods) else None
+        row["ratios"] = {
+            "gross_margin": _ratio(row.get("gross_profit"), revenue),
+            "operating_margin": _ratio(row.get("operating_income"), revenue),
+            "net_margin": _ratio(row.get("net_income"), revenue),
+            "free_cash_flow_margin": _ratio(row.get("free_cash_flow"), revenue),
+            "revenue_growth_yoy": (num(revenue / earlier - 1.0)
+                                   if revenue is not None and earlier and earlier > 0 else None),
+            "debt_to_equity": _ratio(row.get("total_debt"), row.get("stockholders_equity")),
+        }
+    return periods
+
+
 @cached_for_run
 def get_fundamentals(ticker: str) -> dict:
-    """Statements from yfinance, for companies with no US-GAAP filings on EDGAR."""
+    """Statements from yfinance, for a company whose SEC statements cannot be
+    used: four fiscal years and five quarters, with ratios."""
     throttle()
     t = yf.Ticker(ticker)
     return {
-        "annual": _statement_periods([t.income_stmt, t.cashflow, t.balance_sheet], 4),
-        "quarterly": _statement_periods(
+        "annual": _add_ratios(
+            _statement_periods([t.income_stmt, t.cashflow, t.balance_sheet], 4), lag=1),
+        "quarterly": _add_ratios(_statement_periods(
             [t.quarterly_income_stmt, t.quarterly_cashflow, t.quarterly_balance_sheet], 5),
+            lag=4),
         "valuation": get_valuation(ticker),
     }
 

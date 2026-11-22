@@ -50,6 +50,7 @@ def _ticker_to_cik(ticker: str) -> str:
     raise TickerNotFoundError(ticker)
 
 
+@cached_for_run
 def _submissions(cik: str) -> dict:
     _throttle()
     with _client() as c:
@@ -145,29 +146,39 @@ _FLOW_TAGS = {
     "revenue": ["Revenues", "RevenueFromContractWithCustomerExcludingAssessedTax",
                 "RevenueFromContractWithCustomerIncludingAssessedTax",
                 "SalesRevenueNet", "RevenuesNetOfInterestExpense"],
+    "cost_of_revenue": ["CostOfRevenue", "CostOfGoodsAndServicesSold"],
     "gross_profit": ["GrossProfit"],
     "operating_income": ["OperatingIncomeLoss"],
     "pretax_income": ["IncomeLossFromContinuingOperationsBeforeIncomeTaxes"
-                      "ExtraordinaryItemsNoncontrollingInterest"],
-    # Caterpillar last filed NetIncomeLoss in 2011 and Occidental in early
-    # 2024; both report profit under the other two tags.
-    "net_income": ["NetIncomeLoss", "ProfitLoss",
-                   "NetIncomeLossAvailableToCommonStockholdersBasic"],
+                      "ExtraordinaryItemsNoncontrollingInterest",
+                      "IncomeLossFromContinuingOperationsBeforeIncomeTaxes"
+                      "MinorityInterestAndIncomeLossFromEquityMethodInvestments"],
+    # Income attributable to the company. These two differ only by preferred
+    # dividends, and companies move between them: Caterpillar left
+    # NetIncomeLoss in 2011, Occidental in 2024, and Freeport took it up in
+    # 2026. `_net_income` reads each period from the first that reports it.
+    "net_income": ["NetIncomeLoss", "NetIncomeLossAvailableToCommonStockholdersBasic"],
+    # Part of net income, shown so a one-off gain on a sale is not read as earnings.
+    "discontinued_operations": ["IncomeLossFromDiscontinuedOperationsNetOfTax"],
     "eps_diluted": ["EarningsPerShareDiluted"],
     "diluted_shares": ["WeightedAverageNumberOfDilutedSharesOutstanding"],
     "operating_cash_flow": ["NetCashProvidedByUsedInOperatingActivities"],
     "capex": ["PaymentsToAcquirePropertyPlantAndEquipment",
-              "PaymentsToAcquireProductiveAssets"],
+              "PaymentsToAcquireProductiveAssets",
+              "PaymentsToAcquireOtherPropertyPlantAndEquipment"],
     "buybacks": ["PaymentsForRepurchaseOfCommonStock"],
-    "dividends_paid": ["PaymentsOfDividends", "PaymentsOfDividendsCommonStock"],
-    "research_and_development": ["ResearchAndDevelopmentExpense"],
+    "dividends_paid": ["PaymentsOfDividends", "PaymentsOfDividendsCommonStock",
+                       "PaymentsOfOrdinaryDividends"],
+    "research_and_development": ["ResearchAndDevelopmentExpense",
+                                 "ResearchAndDevelopmentExpenseExcludingAcquiredInProcessCost"],
     "selling_general_and_admin": ["SellingGeneralAndAdministrativeExpense"],
-    "stock_based_compensation": ["ShareBasedCompensation"],
+    "stock_based_compensation": ["ShareBasedCompensation",
+                                 "AllocatedShareBasedCompensationExpense"],
     "depreciation_and_amortization": ["DepreciationDepletionAndAmortization",
                                       "DepreciationAndAmortization",
                                       "DepreciationAmortizationAndAccretionNet"],
     "interest_expense": ["InterestExpense", "InterestExpenseNonoperating",
-                         "InterestExpenseDebt"],
+                         "InterestExpenseDebt", "InterestAndDebtExpense"],
 }
 _INSTANT_TAGS = {
     "cash": ["CashAndCashEquivalentsAtCarryingValue",
@@ -176,7 +187,10 @@ _INSTANT_TAGS = {
     "current_liabilities": ["LiabilitiesCurrent"],
     "total_assets": ["Assets"],
     "total_liabilities": ["Liabilities"],
-    "long_term_debt": ["LongTermDebt", "LongTermDebtNoncurrent"],
+    # Oracle, Target and Home Depot carry their debt under the last three.
+    "long_term_debt": ["LongTermDebt", "LongTermDebtNoncurrent",
+                       "LongTermDebtAndCapitalLeaseObligations", "LongTermNotesAndLoans",
+                       "LongTermNotesPayable"],
     "stockholders_equity": ["StockholdersEquity"],
 }
 # A year-to-date figure for these cannot be differenced into a quarter.
@@ -186,14 +200,19 @@ _PERIODIC_FORMS = ("10-K", "10-Q", "20-F", "40-F")
 # before the next annual report is filed. Statements older than this are not
 # the company's current ones, whatever the reason.
 _STALE_DAYS = 500
+# Consolidated profit, used only when no attributable figure is current.
+_PROFIT_TAG = "ProfitLoss"
 # What net income means when it is not filed under NetIncomeLoss.
 _NET_INCOME_NOTES = {
-    "ProfitLoss": (" net_income here is consolidated profit, before the share of "
-                   "noncontrolling interests is taken out."),
+    _PROFIT_TAG: (" net_income here is consolidated profit, before the share of "
+                  "noncontrolling interests is taken out."),
     "NetIncomeLossAvailableToCommonStockholdersBasic": (
-        " net_income here is income available to common stockholders, after preferred "
-        "dividends."),
+        " Where NetIncomeLoss is not filed for a period, net_income is income available "
+        "to common stockholders, after preferred dividends."),
 }
+# The facts feed can stop while the company keeps filing. A latest report this
+# many days past the last period in the facts means a quarter is missing.
+_REPORT_GAP_DAYS = 45
 _STATEMENT_NOTES = (
     "Quarterly figures are single quarters. Where filings give only "
     "year-to-date figures (cash flow items, fourth quarters), the quarter is "
@@ -263,6 +282,40 @@ def _series(gaap: dict, tags: list[str]) -> tuple[str | None, dict]:
     return best[1], periods
 
 
+def _latest_year(periods: dict) -> str:
+    return max((e for (s, e) in periods if s and _is_year(s, e)), default="")
+
+
+def _net_income(gaap: dict) -> tuple[str | None, dict]:
+    """Net income attributable to the company, with the tags it came from.
+
+    Each period is read from the first attributable tag that reports it, so
+    the series follows a company from one tag to the other. Consolidated
+    profit, which includes minority owners' share, is used only when it has a
+    more recent full year than anything attributable.
+    """
+    periods: dict = {}
+    used: list[str] = []
+    for tag in _FLOW_TAGS["net_income"]:
+        _, found = _series(gaap, [tag])
+        new = {period: fact for period, fact in found.items() if period not in periods}
+        if new:
+            periods.update(new)
+            used.append(tag)
+    profit_tag, profit = _series(gaap, [_PROFIT_TAG])
+    if profit_tag and _latest_year(profit) > _latest_year(periods):
+        return profit_tag, profit
+    return "+".join(used) or None, periods
+
+
+def _latest_report(cik: str) -> str | None:
+    """The period end of the most recent annual or quarterly report filed."""
+    recent = _submissions(cik)["filings"]["recent"]
+    return max((covering for form, covering in zip(recent["form"], recent["reportDate"],
+                                                    strict=True)
+                if form in _PERIODIC_FORMS and covering), default=None)
+
+
 def _annual(periods: dict, end: str) -> float | None:
     return next((v[0] for (s, e), v in periods.items()
                  if e == end and s and _is_year(s, e)), None)
@@ -301,7 +354,9 @@ def get_financial_statements(ticker: str, years: int = 5, quarters: int = 6) -> 
     """Income statement, cash flow and balance sheet lines as filed, with ratios.
 
     Sourced from the SEC's XBRL company facts. Raises DataFetchError when the
-    company files no US-GAAP annual statements (for example IFRS filers).
+    company files no US-GAAP annual statements (for example IFRS filers), when
+    the latest fiscal year in the facts is long past, or when the facts stop
+    short of the company's latest report.
     """
     cik = _ticker_to_cik(ticker)
     gaap = _company_facts(cik).get("us-gaap", {})
@@ -310,7 +365,8 @@ def get_financial_statements(ticker: str, years: int = 5, quarters: int = 6) -> 
     instants: dict[str, dict] = {}
     for target, table in ((flows, _FLOW_TAGS), (instants, _INSTANT_TAGS)):
         for name, candidates in table.items():
-            tag, periods = _series(gaap, candidates)
+            tag, periods = (_net_income(gaap) if name == "net_income"
+                            else _series(gaap, candidates))
             if tag:
                 tags[name] = tag
                 target[name] = periods
@@ -323,6 +379,16 @@ def get_financial_statements(ticker: str, years: int = 5, quarters: int = 6) -> 
         raise DataFetchError(
             f"US-GAAP statements on EDGAR for {ticker} end {annual_ends[0]}")
     quarter_ends = sorted({e for (s, e) in anchor if s}, reverse=True)
+    reported = _latest_report(cik)
+    if reported and _days(quarter_ends[0], reported) > _REPORT_GAP_DAYS:
+        raise DataFetchError(f"EDGAR facts for {ticker} end {quarter_ends[0]}, but its "
+                             f"latest report covers {reported}")
+    # Gross profit is derived where it is not filed, or was last filed for an
+    # earlier year than cost of revenue.
+    if "cost_of_revenue" in flows and (_latest_year(flows.get("gross_profit", {}))
+                                       < _latest_year(flows["cost_of_revenue"])):
+        flows.pop("gross_profit", None)
+        tags["gross_profit"] = "derived: revenue less cost_of_revenue"
 
     def value(name: str, end: str, annual: bool) -> float | None:
         periods = flows.get(name)
@@ -346,6 +412,10 @@ def get_financial_statements(ticker: str, years: int = 5, quarters: int = 6) -> 
                      "period_end": end, "form": form, "filed": filed}
         for name in flows:
             out[name] = value(name, end, annual)
+        if "gross_profit" not in flows and "cost_of_revenue" in flows:
+            revenue, cost = out.get("revenue"), out["cost_of_revenue"]
+            out["gross_profit"] = (revenue - cost
+                                   if revenue is not None and cost is not None else None)
         for name, periods in instants.items():
             out[name] = periods.get((None, end), (None,))[0]
         if out.get("operating_cash_flow") is not None and out.get("capex") is not None:
@@ -401,7 +471,9 @@ def get_financial_statements(ticker: str, years: int = 5, quarters: int = 6) -> 
         "annual": [row(annual_ends, i, True) for i in range(min(years, len(annual_ends)))],
         "quarterly": [row(quarter_ends, i, False)
                       for i in range(min(quarters, len(quarter_ends)))],
-        "notes": _STATEMENT_NOTES + _NET_INCOME_NOTES.get(tags.get("net_income"), ""),
+        "notes": _STATEMENT_NOTES + "".join(
+            note for tag, note in _NET_INCOME_NOTES.items()
+            if tag in tags.get("net_income", "").split("+")),
     }
 
 
