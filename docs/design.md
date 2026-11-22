@@ -228,9 +228,24 @@ The pattern and backtest desks work from the stock's full price history.
 
 **Terminal (`run.py`).** `uv run python run.py TICKER` shows a progress line, then the same report with Rich.
 
+**Grading (`grade.py`, `equity_trader/grading.py`).** `uv run python grade.py` scores every saved run against the stock's forward return. See "Grading" below.
+
 ## Persistence
 
 Each run writes one row to the `runs` table in `equity_trader.db` (ticker, timestamp, price, recommendation, conviction, target, score, snapshot path) and the full `OrchestratorVerdict` to `runs/{TICKER}_{YYYY-MM-DD_HHMMSS}.json`. Both are gitignored.
+
+## Grading
+
+`grading.load_runs` reads every snapshot in `runs/` as plain JSON, not through the current schemas, so runs saved under older schemas still load. `grading.grade` takes those and one frame of adjusted closes and returns a row per run, horizon and caller, where a caller is the committee or a desk that reported.
+
+- Entry is the last close before the run: the same day's close for a run at or after 4pm New York time, the prior session's otherwise.
+- The horizons are 63 and 126 sessions after entry. A horizon that has not elapsed has no return and counts as pending.
+- A BUY or SELL is a hit when the stock's own return has the sign of the call. A HOLD has a signed return of zero and is neither hit nor miss.
+- The return against SPY is carried beside the stock's own return.
+
+`grading.summarize` gives, per horizon and caller, the calls graded and pending, the hit rate over BUY and SELL calls, and the average signed return outright and against SPY. It also counts distinct ticker and entry-date pairs, because repeated runs on one stock on one day are one observation.
+
+Not graded yet: price targets, and conviction as a weight.
 
 ## Testing
 

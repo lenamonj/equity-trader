@@ -159,6 +159,15 @@ The orchestrator's schema holds only its judgment. The score, the conviction-wei
 
 <br>
 
+## Grading the verdicts
+
+Every run is saved, so every call can be checked later. `grade.py` reads the saved runs, fetches price history once, and scores the committee and each desk at three and six months (63 and 126 trading sessions after the last close before the run). No model is called.
+
+- A BUY or SELL is a hit when the stock's own return over the horizon has the sign of the call. A HOLD is graded for return, not for hits.
+- Each caller's average return is shown outright and against SPY, so a rising market is not read as skill.
+- Runs whose horizon has not elapsed are listed as pending.
+- Several runs on one stock on one day are one observation. The report counts distinct ticker-days beside every hit rate, and a hit rate on a handful of them says little.
+
 ## Quick start
 
 [uv](https://docs.astral.sh/uv/) is the only prerequisite. It installs Python for you.
@@ -172,6 +181,7 @@ uv sync
 
 ```bash
 uv run python run.py NVDA   # terminal report
+uv run python grade.py      # grade every saved verdict against what the stock did next
 uv run python app.py        # web UI at http://127.0.0.1:7860
 uv run gradio app.py        # web UI with hot reload
 ```
@@ -244,6 +254,7 @@ The mocked tier covers every data function and study on constructed inputs, all 
 equity-trader/
 ├── app.py                      # Gradio UI entry point
 ├── run.py                      # CLI entry point
+├── grade.py                    # grades saved verdicts against forward returns
 ├── pyproject.toml              # uv project + dependencies
 ├── .env.template               # required environment variables
 ├── equity_trader/
