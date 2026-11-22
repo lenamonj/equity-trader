@@ -102,3 +102,13 @@ def test_market_volatility_names_an_inverted_term_structure(monkeypatch):
     assert out["vix_term_structure"]["state"].startswith("inverted")
     vix = out["indexes"]["VIX (30-day S&P 500 implied volatility)"]
     assert vix["value"] == 27.0 and vix["pctile_1y"] == 100
+
+
+def test_unusual_volume_counts_a_strike_with_no_open_interest_reported(options, monkeypatch):
+    # Yahoo lists a newly opened strike with volume and no open interest yet.
+    calls, puts = _chain()
+    puts["openInterest"] = puts["openInterest"].astype(float)
+    puts.loc[0, ["openInterest", "volume"]] = [np.nan, 6000]
+    monkeypatch.setattr(ot, "_chain", lambda t, expiry: (calls, puts))
+    assert ot.options_surface("ACME")["unusual_volume"][0] == {
+        "expiry": _in(10), "type": "put", "strike": 80.0, "volume": 6000, "open_interest": 0}

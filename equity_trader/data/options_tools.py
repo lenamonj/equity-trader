@@ -113,11 +113,13 @@ def _unusual(ticker: str, expiries: list[str]) -> list[dict]:
     rows = []
     for expiry in expiries:
         for kind, frame in zip(("call", "put"), _chain(ticker, expiry), strict=True):
-            volume, oi = frame["volume"].fillna(0), frame["openInterest"].fillna(0)
+            # Yahoo leaves volume or open interest empty on a strike with none.
+            frame = frame.fillna({"volume": 0, "openInterest": 0})
+            volume, oi = frame["volume"], frame["openInterest"]
             for _, r in frame[(volume >= 1000) & (volume > 3 * oi)].iterrows():
                 rows.append({"expiry": expiry, "type": kind, "strike": num(r["strike"], 2),
                              "volume": int(r["volume"]),
-                             "open_interest": int(r["openInterest"] or 0)})
+                             "open_interest": int(r["openInterest"])})
     return sorted(rows, key=lambda r: -r["volume"])[:5]
 
 
