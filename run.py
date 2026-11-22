@@ -7,6 +7,7 @@ import asyncio
 import sys
 
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
@@ -32,6 +33,46 @@ def _bullets(title: str, items: list[str], style: str = "bold") -> None:
         console.print(f"\n[{style}]{title}[/]")
         for item in items:
             console.print(f"  - {item}")
+
+
+def _pct(x: float | None) -> str:
+    return f"{x * 100:+.1f}%" if x is not None else "-"
+
+
+def _events(v: OrchestratorVerdict) -> None:
+    """Recent filings and heavy-volume sessions with their price reaction."""
+    if v.recent_events is None:
+        console.print("\n[bold]Recent events[/]\n  Recent events could not be gathered "
+                      "for this run.")
+        return
+    table = Table(title="Recent events and price reaction", title_justify="left")
+    for column in ("Session", "Event", "Gap", "Close", "Volume",
+                   f"vs {v.recent_events.sector_etf or 'sector'}", "Flags"):
+        table.add_column(column)
+    for e in v.recent_events.events:
+        flags = ", ".join(label for shown, label in ((e.material, "MATERIAL"),
+                                                     (e.unexplained, "UNEXPLAINED")) if shown)
+        if e.session is None:
+            # A filing no session has traded on yet is dated by the filing.
+            table.add_row(e.filings[0].filing_date.isoformat(), escape(e.name),
+                          "no session yet", "-", "-", "-", flags)
+        else:
+            table.add_row(e.session.isoformat(), escape(e.name), _pct(e.opening_gap),
+                          _pct(e.close_to_close_return), f"{e.volume_vs_50d_avg:.1f}x",
+                          _pct(e.return_vs_sector_etf), flags)
+    console.print(table)
+
+    # Headlines for the sessions that need explaining. They are outside text,
+    # so they are printed as text, never as markup.
+    flagged = [e for e in v.recent_events.events
+               if (e.material or e.unexplained) and e.headlines]
+    if flagged:
+        console.print("\n[bold]Headlines[/] (press reports, not verified)")
+    for e in flagged:
+        console.print(f"  {e.session.isoformat()}")
+        for h in e.headlines:
+            console.print(f"    - {escape(h.title)} ({escape(h.source)}, "
+                          f"{h.published.isoformat()})", highlight=False)
 
 
 def render(v: OrchestratorVerdict) -> None:
@@ -70,6 +111,8 @@ def render(v: OrchestratorVerdict) -> None:
     _bullets("Where they agree", v.key_agreements)
     _bullets("Where they split", v.key_disagreements)
     _bullets("Red flags", v.red_flags, style="bold red")
+    console.print()
+    _events(v)
     _bullets("Catalysts", [f"{c.date.isoformat()}  {c.event}  ({c.expected_impact})"
                            for c in v.catalyst_calendar])
 

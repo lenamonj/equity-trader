@@ -125,6 +125,12 @@ class RecentEvent(BaseModel):
     material: bool
     headlines: list[Headline] | None  # None when the feed could not be read
 
+    @property
+    def name(self) -> str:
+        """What happened, from the items of the filings read on the session."""
+        return (" | ".join("; ".join(filing.items) or "8-K" for filing in self.filings)
+                or "Heavy volume, no 8-K filed")
+
 
 class RecentEvents(BaseModel):
     as_of: date

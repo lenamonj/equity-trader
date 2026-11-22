@@ -345,12 +345,8 @@ def _fmt_move(x: float | None) -> str:
 def _event_html(event: RecentEvent, sector_etf: str | None) -> str:
     # A filing no session has traded on yet is dated by the filing.
     when = event.session or event.filings[0].filing_date
-    if event.filings:
-        name = " | ".join("; ".join(f.items) or "8-K" for f in event.filings)
-        filed = ", ".join(f.filing_date.isoformat() for f in event.filings)
-        notes = f"8-K filed {filed}"
-    else:
-        name, notes = "Heavy volume, no 8-K filed", ""
+    filed = ", ".join(f.filing_date.isoformat() for f in event.filings)
+    notes = f"8-K filed {filed}" if filed else ""
     if event.session is None:
         reaction = "No session has traded since this filing"
     else:
@@ -378,7 +374,7 @@ def _event_html(event: RecentEvent, sector_etf: str | None) -> str:
         f'    <div class="event-day">{when.day:02d}</div>'
         f'  </div>'
         f'  <div>'
-        f'    <div class="event-name">{_e(name)}</div>'
+        f'    <div class="event-name">{_e(event.name)}</div>'
         f'    <div class="event-notes">{_e(notes)}</div>'
         f'    <div class="event-reaction">{reaction}</div>'
         f'    {headlines}'
