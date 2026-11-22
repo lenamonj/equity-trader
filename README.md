@@ -219,6 +219,8 @@ All market data is free. No paid feeds.
 
 Companies that file no US-GAAP statements with the SEC, such as IFRS filers, fall back to yfinance statements, and the desk is told which source it received.
 
+Free does not mean unrestricted. yfinance reads Yahoo Finance, which yfinance itself describes as intended for personal use only, and the Google News feed states that it is for personal, non-commercial use. Read both providers' terms before using this project for anything else.
+
 <br>
 
 ## Testing
